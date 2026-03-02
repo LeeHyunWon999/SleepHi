@@ -1,0 +1,245 @@
+from util.packages import *
+from util.a1_preprocess import *
+from util.a2_kmo import *
+from util.a3_EFA import *
+from util.a4_CFA import *
+from util.a5_outcome import *
+
+
+def etc_jobs(args) :
+    
+    # 폰트 설정
+    fp = FontProperties(fname="/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+
+    # plt.title("한글 제목 테스트", fontproperties=fp)
+    # plt.xlabel("가로축", fontproperties=fp)
+    # plt.ylabel("세로축", fontproperties=fp)
+    # plt.show()
+
+    fp = fm.FontProperties(fname="/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")
+    rcParams['font.family'] = fp.get_name()   # 파일에서 읽은 실제 이름 등록
+    rcParams['axes.unicode_minus'] = False
+
+
+
+
+
+def preprocess(args) : 
+
+    
+    DATA_FILE = args.data_file         # 설문 데이터(.xlsx)
+    META_FILE = args.meta_file       # 변수 메타데이터(.xlsx)
+
+    # ==== 데이터/메타데이터 로드 ====
+    df = pd.read_excel(DATA_FILE)
+    meta = pd.read_excel(META_FILE)
+
+    print("데이터 크기:", df.shape)
+    print("컬럼 예시:", df.columns[:10].tolist())
+
+    # 메타 필수 컬럼 체크
+    required_cols = {"변수명", "범주형", "연속형"}
+    missing_meta_cols = required_cols - set(meta.columns)
+    if missing_meta_cols:
+        raise ValueError(f"메타데이터에 필요한 컬럼이 없습니다: {missing_meta_cols}")
+
+    # 범주/연속 변수 리스트
+    categorical_vars = meta.loc[meta["범주형"] == 1, "변수명"].dropna().astype(str).tolist()
+    continuous_vars = meta.loc[meta["연속형"] == 1, "변수명"].dropna().astype(str).tolist()
+
+    # 실제 df에 존재하는 컬럼만 사용
+    categorical_vars = [c for c in categorical_vars if c in df.columns]
+    continuous_vars = [c for c in continuous_vars if c in df.columns]
+
+    print("범주형 변수 개수:", len(categorical_vars))
+    print("연속형 변수 개수:", len(continuous_vars))
+
+
+
+    # 누락변수 있으면 확인 후 제거 (ID는 원래 제외하는게 맞음)
+    print(set(df.columns) - set(categorical_vars + continuous_vars))
+
+    df.drop(set(df.columns) - set(categorical_vars + continuous_vars), axis=1, inplace=True)
+
+    # 결측치 제거
+    df_clean = df.dropna()
+    print("원래 행 개수:", len(df))
+    print("결측치 제거 후 행 개수:", len(df_clean))
+    df = df_clean.copy()
+
+
+
+
+    # ===== 시간 값 변환 =====
+    
+    report = convert_time_columns_inplace_for_efa(df, continuous_vars)
+
+    print("[변환 완료 요약]")
+    print("  변환 성공 열 수:", len(report["converted"]))
+    if report["converted"]:
+        print("   └", report["converted"])
+
+    print("  변환 스킵 열 수:", len(report["skipped"]))
+    if report["skipped"]:
+        print("   └", report["skipped"])
+        print("\n[스킵 사유(문제 값 예시)]")
+        print(report["issues"].to_string(index=False))
+
+    # EFA 투입 열 목록 (숫자형만)
+    efa_cols = report["efa_cols"]
+    print("\n[EFA 열 개수]:", len(efa_cols))
+    # 이제 바로 EFA:
+    # X_efa = df[efa_cols].copy()
+    # print("EFA 입력 크기:", X_efa.shape)
+
+
+
+    # 시간 값 평균 취한 후 상대적 차이로 변환 (예: 수면 시작 시간은 평균보다 몇 분 늦거나 빠른지)
+    df = apply_relative_to_mean(df, meta)
+
+
+    # z-score 표준화 (평균 0, 표준편차 1), 동시에 임시용으로 표준화하지 않은 원본 열도 유지
+
+    # dtype이 number면 모두 표준화 : 사실상 전부 표준화 (카테고리값도 전부 숫자이므로)
+    num_cols = df.select_dtypes(include=['number']).columns
+
+    print(len(num_cols))
+
+
+    # 표준화 없는 데이터 미리 분리
+
+    df_raw = df.copy()
+
+
+
+    # 수치형 열 전부 표준화 (원본 df 자체에 덮어쓰기)
+    df[num_cols] = (df[num_cols] - df[num_cols].mean()) / df[num_cols].std(ddof=0)
+
+
+    global RANDOM_SEED
+
+    # 데이터셋 5:5로 분할 (EFA용, CFA용)
+    df_EFA, df_CFA = train_test_split(df, test_size=0.5, random_state=RANDOM_SEED)
+
+    df_EFA_raw, df_CFA_raw = train_test_split(df_raw, test_size=0.5, random_state=RANDOM_SEED)
+
+    print("✅ 데이터 분할 완료")
+    print(f" - EFA용 데이터: {df_EFA.shape}")
+    print(f" - CFA용 데이터: {df_CFA.shape}")
+    print()
+    print(f" - EFA용 데이터: {df_EFA_raw.shape}")
+    print(f" - CFA용 데이터: {df_CFA_raw.shape}")
+
+
+    print("예시 값:", df_EFA["MCTQ_GUa"].values[:5])
+    print("예시 값:", df_EFA["MCTQ_MSF"].values[:5])
+    print("예시 값:", df_EFA["MSF_mismatch_pristine"].values[:5])
+    print("예시 값:", df_EFA["MCTQ_MBF"].values[:5])
+
+    print("예시 값:", df_CFA["MCTQ_GUa"].values[:5])
+    print("예시 값:", df_CFA["MCTQ_MSF"].values[:5])
+    print("예시 값:", df_CFA["MSF_mismatch_pristine"].values[:5])
+    print("예시 값:", df_CFA["MCTQ_MBF"].values[:5])
+
+
+    # 나이 그룹도 제거
+    df_EFA = df_EFA.drop(columns=['age_group'])
+    df_CFA = df_CFA.drop(columns=['age_group'])
+
+    # 분산 작은 변수 제거
+    var_threshold = args.var_threshold
+    low_var_cols = df.var()[df.var() <= var_threshold].index.tolist()
+    print("[제거] 분산이 너무 작은 열:", low_var_cols)
+
+    df = df.drop(columns=low_var_cols)
+    df_EFA = df_EFA.drop(columns=low_var_cols)
+    df_CFA = df_CFA.drop(columns=low_var_cols)
+
+
+    # df_EFA, df_CFA, df_EFA_raw, df_CFA_raw 저장 (전처리 쪽이니 RESULT_DIR이 아닌 DATA_DIR에 저장)
+    global DATA_DIR    
+
+    df_EFA.to_csv(os.path.join(DATA_DIR, "df_EFA.csv"), index=False)
+    df_CFA.to_csv(os.path.join(DATA_DIR, "df_CFA.csv"), index=False)
+    df_EFA_raw.to_csv(os.path.join(DATA_DIR, "df_EFA_raw.csv"), index=False)
+    df_CFA_raw.to_csv(os.path.join(DATA_DIR, "df_CFA_raw.csv"), index=False)
+
+
+
+
+
+def kmo_bartlett(args) :
+    # 전문가 지식으로 정제한 변수 목록은 그냥 바로 json 경로 뽑아서 읽기
+    with open(args.expert_checked_var_list_dir, "r", encoding="utf-8") as f:
+        fa_vars = json.load(f)
+
+    print("KMO 결과가 일정 수치 이하인 변수 제거 작업은 스킵 : 이미 해당 과정과 함께 전문가 지식 도움 받아서 변수 정제함") # 나중에 필요하면 구현할 순 있을 것
+
+    if len(fa_vars) < 3: # 요인 수 조건 검사
+        raise ValueError(f"[skip] 요인분석 변수 수 부족: {fa_vars}")
+
+    # 여긴 이제 형식상 있는 느낌.. 딱히 저장할 데이터도 없음 (나중에 코드 완성 시 작성하긴 해야 할 것)
+    pass
+
+
+
+def efa(args) :
+    # 데이터 불러오기
+    df_EFA = pd.read_csv(DATA_DIR, args.df_EFA_dir)
+
+    with open(args.expert_checked_var_list_dir, "r", encoding="utf-8") as f: # 변수 목록 그대로 가져오기
+        fa_vars = json.load(f)
+    
+    # Scree plot 그리기
+    scree_plot(args, df_EFA, fa_vars)
+
+    # 원랜 요인 수 정하는 과정이 있으나, 일단 스킵하고 자동진행(스킵여부 및 자동진행시 요인수는 config에서 조정)
+    if args.skip_factor_num : 
+        N_FACTOS = args.factor_num_at_skip
+    else : 
+        print("출력된 스크리 플롯을 보고 요인 수를 입력하시오 : ")
+        N_FACTORS = int(input())
+    
+    X_imp = preprocess_for_fa(df_EFA, fa_vars)  # 혹시 모르니 숫자화/결측/inf 작업 등 수행
+
+    # N_FACTORS 검증: 변수 수를 넘을 수 없음
+    max_factors = min(X_imp.shape[1]-1, X_imp.shape[0]-1)  # 보수적으로 제한
+    if N_FACTORS > max_factors:
+        raise ValueError(f"N_FACTORS={N_FACTORS}가 허용치({max_factors})를 초과")
+    
+    # EFA 수행
+    efa_task(args, X_imp, N_FACTORS)
+
+
+
+def cfa(args) :
+    # 데이터 불러오기
+    EFA_comm_and_uniq = pd.read_csv(args.efa_comm_uniq_dir)
+    EFA_loadings = pd.read_csv(args.efa_loadings_dir)
+    N_FACTORS = args.factor_num
+
+    # 결과 바탕으로 유효한 요인 필터링
+    cfa_refined = refine_for_cfa(
+    result=EFA_comm_and_uniq,
+    loadings=EFA_loadings,
+    n_factors=N_FACTORS, # 위에서 설정된 값으로 진행
+    communality_thr=args.communality_thr,  # 공통성 기준
+    loading_thr=args.loading_thr,  # 적재치 기준
+    cross_loading_thr=args.cross_loading_thr  # 1위 요인과 2위 요인 loading 차이 기준
+    )
+
+    desc = make_cfa_description(cfa_refined["factor_groups"]) # 자동으로 CFA 구조식(desc) 생성
+
+    if args.skip_desc : # 자동 구조식 대신 전문가 지식 쓰려는 경우 (일단 우린 이렇게 할 것)
+        with open(args.expert_desc, "r", encoding="utf-8") as f:
+            desc = f.read()
+    
+    # semopy의 Model 사용하여 CFA 모델링 수행 (df_CFA도 로드)
+    df_CFA = pd.read_csv(args.df_CFA_dir)
+    stats = CFA_task(args, desc, df_CFA)
+    CFA_visualization(args, stats) # 시각화
+
+
+def outcome_test(args) :
+    pass
+

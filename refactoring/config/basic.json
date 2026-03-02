@@ -1,0 +1,39 @@
+{
+    "task_list" : [
+        0,1,2,3,4,5
+    ],
+
+    "RANDOM_SEED" : 42,
+    "DATA_DIR" : "/home/hschoi/data/leehyunwon/SleepHi/refactoring/data",
+    "RESULTS_DIR" : "/home/hschoi/data/leehyunwon/SleepHi/refactoring/output",
+
+    "task_0" : {
+    },
+    "task_1" : {
+        "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_KSHS_2nd_data_250811.xlsx",
+        "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_Variable_250811.xlsx",
+        "var_threshold" : 1e-5
+    },
+    "task_2" : {
+        "expert_checked_var_list_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_checked_var_list.json"
+    },
+    "task_3" : {
+        "expert_checked_var_list_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_checked_var_list.json",
+        "df_EFA_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA.csv",
+        "skip_factor_num" : true,
+        "factor_num_at_skip" : 8
+
+    },
+    "task_4" : {
+        "EFA_Comm_Uniq_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/EFA_communality_and_uniqueness.csv",
+        "EFA_loadings_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/EFA_loadings.csv",
+        "factor_num" : 8,
+        "communality_thr" : 0.5,
+        "loading_thr" : 0.7,
+        "cross_loading_thr" : 0.2,
+        "skip_desc" : true,
+        "expert_desc" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc.txt" 
+
+    },
+    "task_5" : {}
+}
