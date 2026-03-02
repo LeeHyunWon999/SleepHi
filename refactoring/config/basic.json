@@ -48,7 +48,7 @@
         "binary_train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
         "covariates" : [],
         "test_data_2018_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
-        "regression_var" : "Q51_slp_sufficient",
+        "regression_var" : "PSQI_sum_WA",
         "scoring_weights_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results/outcome_scoring_weights.csv",
         "N_SPLITS" : 5
 
