@@ -32,8 +32,20 @@
         "loading_thr" : 0.7,
         "cross_loading_thr" : 0.2,
         "skip_desc" : true,
-        "expert_desc" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc.txt" 
+        "expert_desc" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc.txt",
+        "df_CFA_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA.csv"
 
     },
-    "task_5" : {}
+    "task_5" : {
+        "train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA.csv",
+        "test_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA.csv",
+        "expert_desc" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc.txt",
+        "observed_cols" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc_list_ver.json",
+        "continuous_outcomes" : ["ISI_sum", "ESS_sum", "PHQ_sum", "Q51_slp_sufficient", "PSQI_sum_WA"],
+        "binary_outcomes" : ["insomnia", "EDS", "depression", "poor_sleeper"],
+        "binary_train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
+        "covariates" : [],
+        "test_data_2018_dir" : ""
+
+    }
 }

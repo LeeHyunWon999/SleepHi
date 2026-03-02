@@ -240,6 +240,203 @@ def cfa(args) :
     CFA_visualization(args, stats) # 시각화
 
 
-def outcome_test(args) :
-    pass
+
+
+
+
+
+# outcome 변수들을 이용한 평가
+def outcome_check(args) :
+    
+    # 변수 할당
+
+    global RESULTS_DIR
+    
+    with open(args.expert_desc, "r", encoding="utf-8") as f:
+        desc = f.read()
+
+    with open(args.observed_cols, "r", encoding="utf-8") as f:
+        observed_cols = json.load(f)
+    
+    continuous_outcomes = args.continuous_outcomes
+    binary_outcomes = args.binary_outcomes
+    covariates = args.covariates
+
+    # 데이터
+    df_CFA = pd.read_csv(args.train_data_dir)
+    df_CFA_raw = pd.read_csv(args.binary_train_data_dir)
+    df_EFA = pd.read_csv(args.test_data_dir) # 기회 되면 2018 데이터로 갈아탈 것!
+    
+
+
+
+
+
+    # ---- CFA 재수행 후 factor score 뽑기 ----
+    model, est, stats, factor_scores_df = fit_cfa_get_stats_and_scores(
+        df=df_CFA,
+        desc=desc,
+        observed_cols=observed_cols,
+        fit_options={"disp": True},
+        dropna_for_scores=True,
+        save_est_path="cfa_estimates.csv",
+        save_stats_path="cfa_fit_stats.csv",
+    )
+
+    # ---- factor score 만드는데 쓰인 weight matrix 추출 ----
+    scoring_weights_df = extract_scoring_weights(model)
+
+    # ---- 라벨링 통일 ----
+    factor_scores_axes, scoring_weights_axes = relabel_scores_and_weights_as_axes(
+        factor_scores_df=factor_scores_df,
+        scoring_weights_df=scoring_weights_df,
+        axis_prefix="Factor_"
+    )
+
+    # 이후 분석에서 factor_scores_df를 라벨 통일된 버전으로 사용
+    factor_scores_df = factor_scores_axes
+
+    # 저장
+    global RESULTS_DIR
+    factor_scores_axes.to_csv(os.path.join(RESULTS_DIR, "outcome_factor_scores.csv"), encoding="utf-8-sig")
+    scoring_weights_axes.to_csv(os.path.join(RESULTS_DIR, "outcome_scoring_weights.csv"), encoding="utf-8-sig")
+
+    # 확인용 top-weight 출력 (Axis 기준)
+    for ax in scoring_weights_axes.index:
+        top = scoring_weights_axes.loc[ax].abs().sort_values(ascending=False).head(3)
+        print(f"[CHECK] {ax} top weights:", list(zip(top.index.tolist(), top.values.tolist())))
+
+
+
+
+
+
+    # --------------------factor score과 outcome 변수를 한 df에 집어넣고 관리하기-----------------------------------
+    # -> 단, binary outcome은 정규화로 0/1 값을 망치면 안되므로 raw 값으로 덮어쓰기
+    # -> 다른 변수들이 군더더기로 붙어있다. 어차피 함수 안쪽에서 정제되긴 하지만, 그래도 겉에서 continuous outcome만 발라내도록 하자.
+    # -> 겸사겸사 로직 변경 : 괜히 df_CFA 다 집어넣지 말고, df_fs에서 연속 outcome만 추출하고, 이산 outcome 및 factor score과 합쳐서 진행?
+
+
+    df_fs_continuous = df_CFA[continuous_outcomes].copy()  # 연속형 outcome은 일단 z-score 표준화 된 데이터에서 추출
+    df_fs_binary = df_CFA_raw[binary_outcomes].copy()  # 이산형 outcome은 raw로 추출
+
+    df_fs = pd.concat([df_fs_continuous, df_fs_binary, factor_scores_df], axis=1, join="inner")  # factor score과 outcome 합치기 (연속형은 표준화된 값, 이산형은 raw 값 유지)
+    print("각 df 크기 :", df_fs_continuous.shape, df_fs_binary.shape, factor_scores_df.shape)
+    print("inner join 후 df_fs 크기:", df_fs.shape)
+
+
+
+
+
+
+    # (선택) covariates도 raw로 유지하고 싶으면 같이 덮어쓰기
+    # cov_missing = [c for c in covariates if c not in df_CFA_raw.columns]
+    # if cov_missing:
+    #     raise KeyError(f"Covariate columns missing in df_CFA_raw: {cov_missing}")
+    # df_fs.loc[:, covariates] = df_CFA_raw.loc[df_fs.index, covariates].values
+
+
+
+
+
+
+    factor_cols = list(factor_scores_df.columns)
+
+
+    # t-test 정규성 검정
+    shapiro_res = shapiro_by_binary_groups(
+        df=df_fs,                   # 보통 t-test에 쓰는 df_fs에서 검사하는 게 자연스러움
+        binary_outcomes=binary_outcomes,
+        factor_cols=factor_cols,
+        alpha=0.05,
+        max_n=5000,
+        random_state=RANDOM_SEED
+    )
+
+    shapiro_res.to_csv(os.path.join(RESULTS_DIR, "outcome_shapiro_results_by_group.csv"), index=False)
+    print(shapiro_res.head(20))
+
+
+
+
+
+    # ---- 연속 outcome 대상 OLS 적합 ----
+    ols_results = run_ols_continuous_outcomes(
+        df_fs,
+        outcome_cols=continuous_outcomes,
+        factor_cols=factor_cols,
+        covariates=covariates,
+        robust_se="HC3",
+        standardize=True,   # 표준화 β로 보고 싶으면 True, raw 단위 해석이면 False
+        fdr_method="fdr_bh"
+    )
+    ols_results.to_csv(os.path.join(RESULTS_DIR, "outcome_task1_ols_results.csv"), index=False)
+
+    # ---- 이산 outcome 대상 t-test (표본수 이슈가 있을 수 있음) ----
+    ttest_results = run_ttests_binary_outcomes_on_factors(
+        df_fs,
+        binary_outcome_cols=binary_outcomes,
+        factor_cols=factor_cols,
+        equal_var=False,
+        fdr_method="fdr_bh"
+    )
+    ttest_results.to_csv(os.path.join(RESULTS_DIR, "outcome_task1_ttest_results.csv"), index=False)
+
+    # ---- 이산 outcome 대상 MHU(Mann–Whitney U tests) ----
+    mwu_results = run_mannwhitney_binary_outcomes_on_factors(
+        df=df_fs,
+        binary_outcome_cols=binary_outcomes,
+        factor_cols=factor_cols,
+        alternative="two-sided",
+        fdr_method="fdr_bh"
+    )
+
+    mwu_results.to_csv(os.path.join(RESULTS_DIR, "outcome_task1_mwu_results.csv"), index=False)
+    # print(mwu_results.head(30))
+
+
+
+    # logistic regression : 이 버전은 결과가 이상해서 일단 보류하기로 했음
+    # # ---- (E-1) Strategy 1: Holdout 7:3 (train fit / test AUC) ----
+    # logit_holdout = run_logistic_binary_outcomes(
+    #     df_fs,
+    #     binary_outcome_cols=binary_outcomes,
+    #     factor_cols=factor_cols,
+    #     covariates=covariates,
+    #     robust_se="HC3",
+    #     standardize_predictors=True,
+    #     fdr_method="fdr_bh",
+    #     compute_auc=True,
+    #     auc_strategy="holdout",
+    #     test_size=0.3,
+    #     bootstrap_n=1000,          # 무시됨
+    #     random_state=RANDOM_SEED
+    # )
+    # logit_holdout.to_csv("aux_logit_results_holdout.csv", index=False)
+
+    # # ---- (E-2) Strategy 2: Bootstrap AUC (OOB, 1000회) ----
+    # logit_boot = run_logistic_binary_outcomes(
+    #     df_fs,
+    #     binary_outcome_cols=binary_outcomes,
+    #     factor_cols=factor_cols,
+    #     covariates=covariates,
+    #     robust_se="HC3",
+    #     standardize_predictors=True,
+    #     fdr_method="fdr_bh",
+    #     compute_auc=True,
+    #     auc_strategy="bootstrap",
+    #     test_size=0.3,             # 무시됨
+    #     bootstrap_n=1000,
+    #     random_state=RANDOM_SEED
+    # )
+    # logit_boot.to_csv("aux_logit_results_bootstrap.csv", index=False)
+
+    # pass
+
+
+
+
+    # 시각화
+    
+
 

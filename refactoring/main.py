@@ -49,7 +49,7 @@ def main() :
             a00_task_executor.cfa(args.task_4)
         elif task == 5 :
             # outcome test 함수 (예: 회귀분석)
-            a00_task_executor.outcome_test(args.task_5)
+            a00_task_executor.outcome_check(args.task_5)
             
 
 
