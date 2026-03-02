@@ -5,10 +5,12 @@ def refine_for_cfa(
     result,
     loadings,
     n_factors,
+    RESULTS_DIR,
     communality_thr=0.5,
     loading_thr=0.5,
-    cross_loading_thr=0.2  # 1순위와 2순위 loading 차이 기준
+    cross_loading_thr=0.2,  # 1순위와 2순위 loading 차이 기준
     ### 여기 값들은 기본설정 값이므로 직접 지정하는건 밑에서 할 것!
+    
 ):
     df_comm = result.copy()
     df_load = loadings.copy()
@@ -17,6 +19,8 @@ def refine_for_cfa(
     drop_comm = df_comm[df_comm["Communality"] <= communality_thr].index.tolist()
 
     # 2️⃣ 최대 적재량 기준
+    print(df_load.dtypes)
+    print(df_load)
     abs_all = df_load.abs()
     max_load = abs_all.max(axis=1)
     drop_low = max_load[max_load <= loading_thr].index.tolist()
@@ -84,7 +88,6 @@ def refine_for_cfa(
     factor_names = [f"Factor{i}" for i in range(1, n_factors + 1)]
     factor_lists = [factor_map[f] for f in factor_names]
     df_factors_wide = pd.DataFrame(zip_longest(*factor_lists), columns=factor_names)
-    global RESULTS_DIR
     df_factors_wide.to_csv(os.path.join(RESULTS_DIR, "CFA_refined_factor_assignment.csv"), index=False, encoding="utf-8-sig")
 
     return {
@@ -96,7 +99,7 @@ def refine_for_cfa(
 # ----------------------------------------
 # CFA 구조식(desc) 자동 생성 (+ 요인분산=1 고정 포함)
 # ----------------------------------------
-def make_cfa_description(factor_map):
+def make_cfa_description(factor_map, RESULTS_DIR) :
     """
     factor_map: {'Factor1': ['a','b'], 'Factor2': ['c','d']} 형태
     반환: lavaan-style formula string
@@ -123,7 +126,6 @@ def make_cfa_description(factor_map):
     print(desc)
 
     # 저장
-    global RESULTS_DIR
     with open(os.path.join(RESULTS_DIR, "cfa_description.txt"), "w", encoding="utf-8") as f:
         f.write(desc)
     
@@ -132,7 +134,7 @@ def make_cfa_description(factor_map):
 
 
 # CFA 수행
-def CFA_task(args, desc, df_CFA) : 
+def CFA_task(args, desc, df_CFA, RESULTS_DIR) : 
     # 1. 모델 정의
     # desc 변수는 이전 단계에서 make_cfa_description 함수로 생성했다고 가정합니다.
     # 예시: desc = "Factor1 =~ Var1 + Var2\nFactor2 =~ Var3 + Var4"
@@ -170,7 +172,7 @@ def CFA_task(args, desc, df_CFA) :
     return stats
 
 # CFA 적합도 결과 시각화
-def CFA_visualization(args, stats) : 
+def CFA_visualization(args, stats, RESULTS_DIR) : 
     fit_indices = stats.loc["Value", ["CFI", "TLI", "GFI", "AGFI", "RMSEA"]]
     fit_indices = fit_indices.reset_index()
     fit_indices.columns = ["Metric", "Value"]
@@ -183,6 +185,5 @@ def CFA_visualization(args, stats) :
     plt.ylim(0,1)
     plt.legend()
     plt.tight_layout()
-    global RESULTS_DIR
     plt.savefig(os.path.join(RESULTS_DIR, "CFA_visualization.png"))
     # plt.show()

@@ -3,7 +3,6 @@
 
 
 
-
 from util.packages import *
 from util import a00_task_executor
 
@@ -13,16 +12,33 @@ from util import a00_task_executor
 
 def main() :
 
+    # args = setup_parser().parse_args()
+    # param = load_json(args.config)
+
+    # for k, v in param.items():
+    #     setattr(args, k, v)
+
+    def dict_to_namespace(d):
+        if isinstance(d, dict):
+            return SimpleNamespace(**{
+                k: dict_to_namespace(v) for k, v in d.items()
+            })
+        elif isinstance(d, list):
+            return [dict_to_namespace(x) for x in d]
+        else:
+            return d
+
     args = setup_parser().parse_args()
     param = load_json(args.config)
 
-    for k, v in param.items():
-        setattr(args, k, v)
+    merged = {**vars(args), **param}
+    args = dict_to_namespace(merged)
+    
+
 
     # 랜덤시드는 글로벌로 지정
-    RANDOM_SEED = args.random_seed
+    RANDOM_SEED = args.RANDOM_SEED
     np.random.seed(RANDOM_SEED)
-    random.seed(RANDOM_SEED)
 
     # 데이터 입력 / 결과 출력 경로 지정 (얘네도 글로벌)
     DATA_DIR = args.DATA_DIR
@@ -37,19 +53,19 @@ def main() :
             a00_task_executor.etc_jobs(args.task_0)
         elif task == 1 :
             # 데이터 전처리 함수
-            df_EFA, df_CFA, df_EFA_raw, df_CFA_raw = a00_task_executor.preprocess(args.task_1)
+            a00_task_executor.preprocess(args.task_1, RANDOM_SEED, DATA_DIR)
         elif task == 2 :
             # KMO, Bartlett's test 함수
             a00_task_executor.kmo_bartlett(args.task_2)
         elif task == 3 :
             # EFA 함수
-            a00_task_executor.efa(args.task_3)
+            a00_task_executor.efa(args.task_3, DATA_DIR, RESULTS_DIR)
         elif task == 4 :
             # CFA 함수
-            a00_task_executor.cfa(args.task_4)
+            a00_task_executor.cfa(args.task_4, RESULTS_DIR)
         elif task == 5 :
             # outcome test 함수 (예: 회귀분석)
-            a00_task_executor.outcome_check(args.task_5)
+            a00_task_executor.outcome_check(args.task_5, RESULTS_DIR, RANDOM_SEED)
             
 
 

@@ -33,6 +33,7 @@ from matplotlib import font_manager as fm
 from matplotlib import rcParams
 
 
+from types import SimpleNamespace
 
 
 
@@ -50,7 +51,7 @@ from scipy.stats import shapiro
 
 
 
-from __future__ import annotations
+# from __future__ import annotations
 
 from scipy.stats import ttest_ind
 from statsmodels.stats.multitest import multipletests

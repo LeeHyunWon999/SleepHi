@@ -1,0 +1,16 @@
+Factor1 =~ MCTQ_BTw_c + MCTQ_BTa_c + MCTQ_Sprepw_c + MCTQ_Sprepa_c + MCTQ_SOw_c + MCTQ_SOa_c
+Factor2 =~ MCTQ_GUw + MCTQ_GUa + MCTQ_SEa
+Factor3 =~ MCTQ_SE_w_c + MCTQ_SE_f_c + MCTQ_SE_a_c
+Factor4 =~ MCTQ_bed_reg + MCTQ_sleep_reg + MCTQ_CUS
+Factor5 =~ sex + D3_1_ht + D3_2_wt
+Factor6 =~ MCTQ_SJL_bed + MCTQ_SJL
+Factor7 =~ age
+Factor8 =~ Pristine_SE + Pristine_MS + SE_mismatch_pristine
+Factor1 ~~ 1*Factor1
+Factor2 ~~ 1*Factor2
+Factor3 ~~ 1*Factor3
+Factor4 ~~ 1*Factor4
+Factor5 ~~ 1*Factor5
+Factor6 ~~ 1*Factor6
+Factor7 ~~ 1*Factor7
+Factor8 ~~ 1*Factor8

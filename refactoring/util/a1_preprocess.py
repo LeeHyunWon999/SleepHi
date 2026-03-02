@@ -129,7 +129,7 @@ def looks_time_like_series(s: pd.Series, sample_n: int = 200) -> bool:
         smp = s.dropna().astype(str).head(sample_n)
         if smp.empty: 
             return False
-        if smp.str.contains(r"\bdays\b|^\s*\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?$|^1900-01-01", regex=True).any():
+        if smp.str.contains(r"\bdays\b|^\s*\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?$|^1900-01-01", regex=True).any():
             return True
         has_dt_like = s.dropna().map(lambda v: isinstance(v, (dt.time, dt.datetime, pd.Timestamp, pd.Timedelta, np.datetime64))).any()
         if has_dt_like:
@@ -216,5 +216,7 @@ def apply_relative_to_mean(df, meta):
         print()
 
     return df_out
+
+
 
 

@@ -738,6 +738,15 @@ def fit_cfa_get_stats_and_scores(
 
     try:
         fs = model.predict_factors(score_df)
+
+        # 인덱스 유지용 : predict_factors가 factor score 추정하면서 내부적으로 인덱스가 꼬임 : 이거 막아야 join할 때 안 꼬임!!
+        if isinstance(fs, pd.DataFrame):
+            fs = fs.copy()
+            fs.index = score_df.index
+        else:
+            fs = pd.DataFrame(fs, index=score_df.index)
+        fs.columns = [f"{score_prefix}{c}" for c in fs.columns]
+
     except Exception as e:
         print(f"[WARN] predict_factors 실패({type(e).__name__}: {e}) → pinv 기반 factor score로 대체합니다.")
         fs = predict_factors_pinv(model, score_df, center=center_scores)
@@ -892,12 +901,243 @@ def shapiro_by_binary_groups(
 
 # ============================= 시각화 관련 =============================
 
-def visual_task1_ols(args) : 
-    pass
+def visual_task1_ols(args, ols: pd.DataFrame, RESULTS_DIR) :
+    
+    # -----------------------------
+    # Plot 1) OLS standardized beta heatmap
+    # -----------------------------
+    pivot_beta = ols.pivot(index="outcome", columns="predictor", values="coef_std_beta")
+    pivot_q    = ols.pivot(index="outcome", columns="predictor", values="p_adj")
 
-def visual_task1_ttest(args) : 
-    pass
+    fig = plt.figure(figsize=(9, 3.5))
+    ax = fig.add_subplot(111)
+    im = ax.imshow(pivot_beta.values, aspect="auto")
+    ax.set_xticks(range(pivot_beta.shape[1]))
+    ax.set_xticklabels(pivot_beta.columns, rotation=45, ha="right")
+    ax.set_yticks(range(pivot_beta.shape[0]))
+    ax.set_yticklabels(pivot_beta.index)
 
-def visual_task1_mwu(args) : 
-    pass
+    for i in range(pivot_beta.shape[0]):
+        for j in range(pivot_beta.shape[1]):
+            b = pivot_beta.values[i, j]
+            q = pivot_q.values[i, j]
+            if np.isfinite(b):
+                star = "*" if (np.isfinite(q) and q < 0.05) else ""
+                ax.text(j, i, f"{b:.2f}{star}", ha="center", va="center", fontsize=9, color="white" if b < -0.2 else "black")
+
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    ax.set_title("OLS: standardized beta (FDR<0.05 marked with *)")
+    fig.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_OLS_beta_heatmap.png"))
+    # plt.show()
+
+
+
+    # -----------------------------
+    # Plot 2) Pivot Cohen's f2
+    # -----------------------------
+    pivot_f2 = ols.pivot(index="outcome", columns="predictor", values="cohens_f2")
+
+
+
+    # -----------------------------
+    # 1) Heatmap: Cohen's f² with values
+    # -----------------------------
+    fig1, ax1 = plt.subplots(figsize=(9, 3.5))
+    im = ax1.imshow(pivot_f2.values, aspect="auto")
+
+    ax1.set_xticks(range(pivot_f2.shape[1]))
+    ax1.set_xticklabels(pivot_f2.columns, rotation=45, ha="right")
+    ax1.set_yticks(range(pivot_f2.shape[0]))
+    ax1.set_yticklabels(pivot_f2.index)
+    ax1.set_title("OLS: Cohen's f² (effect size per factor)")
+
+    # Annotate values
+    for i in range(pivot_f2.shape[0]):
+        for j in range(pivot_f2.shape[1]):
+            val = pivot_f2.values[i, j]
+            if np.isfinite(val):
+                ax1.text(j, i, f"{val:.3f}", ha="center", va="center", fontsize=8, color="white" if val < 0.01 else "black")
+
+    fig1.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
+    fig1.tight_layout()
+
+
+
+    # -----------------------------
+    # 3) Bar plot: Full-model R² with values
+    # -----------------------------
+    
+    # Full-model R2
+    r2_full = ols.groupby("outcome")["r2_full"].mean()
+
+    fig2, ax2 = plt.subplots(figsize=(6, 3.5))
+    bars = ax2.bar(r2_full.index, r2_full.values)
+
+    ax2.set_ylabel("R² (full model)")
+    ax2.set_title("OLS: Full-model R² by outcome")
+
+    # Annotate values on bars
+    for bar in bars:
+        height = bar.get_height()
+        ax2.text(
+            bar.get_x() + bar.get_width() / 2,
+            height,
+            f"{height:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=9
+        )
+
+    fig2.tight_layout()
+
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_OLS_f2_and_R2.png"))
+    # plt.show()
+
+
+
+def visual_task1_ttest(args, tt: pd.DataFrame, RESULTS_DIR) : 
+    tt_sorted = tt.sort_values(["p_adj", "p_value"]).reset_index(drop=True)
+
+    fig = plt.figure(figsize=(9, 3.5))
+    ax = fig.add_subplot(111)
+
+    x = np.arange(len(tt_sorted))
+    g = tt_sorted["hedges_g"].to_numpy()
+    ax.bar(x, g)
+    ax.axhline(0, linestyle="--")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{r.binary_outcome}|{r.factor}" for _, r in tt_sorted.iterrows()],
+                    rotation=45, ha="right", fontsize=8)
+    ax.set_ylabel("Hedges' g")
+    ax.set_title("Two-sample t-tests: effect sizes (Hedges' g)")
+
+    for i, r in tt_sorted.iterrows():
+        if np.isfinite(r["p_adj"]) and r["p_adj"] < 0.05:
+            ax.text(i, g[i] if np.isfinite(g[i]) else 0, "*", ha="center", va="bottom", fontsize=12)
+
+    fig.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_ttest_hedges_g.png"))
+    
+
+
+
+# -----------------------------
+# Plot 2-1) MWU rank-biserial r bar plot (significant only)
+# RBC 해석 : +면 group0이 더 큰 경향, -면 group1이 더 큰 경향
+# 절댓값이 클수록 차이가 큼
+# -----------------------------
+def plot_mwu_effectsize_bar(df:pd.DataFrame, *, alpha: float = 0.05, top_k: int = 30):
+
+    sig = df[np.isfinite(df["p_adj"]) & (df["p_adj"] < alpha)].copy()
+    if sig.empty:
+        print("[INFO] No significant MWU results under FDR.")
+        return
+
+    # 효과크기 절대값 기준으로 상위 top_k
+    sig["abs_r"] = sig["rank_biserial_r"].abs()
+    sig = sig.sort_values(["abs_r", "p_adj"], ascending=[False, True]).head(top_k)
+    sig = sig.reset_index(drop=True)
+
+    labels = [f"{r.binary_outcome} | {r.factor}" for _, r in sig.iterrows()]
+    vals = sig["rank_biserial_r"].to_numpy()
+
+    fig, ax = plt.subplots(figsize=(10, max(3.5, 0.35 * len(sig))))
+    y = np.arange(len(sig))
+
+    ax.barh(y, vals)
+    ax.axvline(0.0, linestyle="--")
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Rank-biserial correlation (MWU effect size)")
+    ax.set_title(f"Mann–Whitney U: significant effects (FDR<{alpha})")
+
+    # 값 표시
+    for i, v in enumerate(vals):
+        ax.text(v, i, f"{v:.3f}", va="center", ha=("left" if v >= 0 else "right"))
+
+    fig.tight_layout()
+    plt.show()
+
+
+
+
+
+
+
+
+# -----------------------------
+# Plot 2-2) MWU p_adj heatmap
+# factor가 많을 때 전체 구조 보는 용도
+# 일단 냅두기?
+# -----------------------------
+def plot_mwu_padj_heatmap_with_text(
+    df: pd.DataFrame,
+    *,
+    alpha: float = 0.05,
+    fmt: str = ".3f",
+    cmap: str = "viridis",
+    show_only_significant: bool = False
+):
+
+    # pivot: rows = outcome, cols = factor
+    pv = df.pivot_table(
+        index="binary_outcome",
+        columns="factor",
+        values="p_adj",
+        aggfunc="first"
+    )
+
+    if pv.empty:
+        print("[INFO] Empty pivot table.")
+        return
+
+    # 마스크: NaN은 항상 가림
+    mask = pv.isna()
+
+    # 선택: 유의하지 않은 값도 가릴 경우
+    if show_only_significant:
+        mask = mask | (pv >= alpha)
+
+    # figure size 자동 조절
+    plt.figure(
+        figsize=(
+            max(8, 0.45 * pv.shape[1]),
+            max(3, 0.8 * pv.shape[0])
+        )
+    )
+
+    ax = sns.heatmap(
+        pv,
+        mask=mask,
+        annot=True,                 # 🔴 숫자 표시
+        fmt=fmt,                    # 🔴 소수점 자리
+        cmap=cmap,
+        cbar=True,
+        linewidths=0.5,
+        linecolor="gray",
+        annot_kws={"size": 10}      # 🔴 글씨 크기
+    )
+
+    ax.set_title(
+        "MWU test (FDR-adjusted p-values)"
+        + (" [significant only]" if show_only_significant else ""),
+        fontsize=13
+    )
+    ax.set_xlabel("Factor")
+    ax.set_ylabel("Binary outcome")
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def visual_task1_mwu(args, mwu_results: pd.DataFrame) : 
+    plot_mwu_effectsize_bar(mwu_results, alpha=0.05, top_k=30)
+    plot_mwu_padj_heatmap_with_text(mwu_results)
+
+
+
 

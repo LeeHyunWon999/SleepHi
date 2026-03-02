@@ -4,8 +4,10 @@
     ],
 
     "RANDOM_SEED" : 42,
-    "DATA_DIR" : "/home/hschoi/data/leehyunwon/SleepHi/refactoring/data",
-    "RESULTS_DIR" : "/home/hschoi/data/leehyunwon/SleepHi/refactoring/output",
+    "DATA_DIR" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data",
+    "RESULTS_DIR" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results",
+    "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_KSHS_2nd_data_250811.xlsx",
+    "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_Variable_250811.xlsx",
 
     "task_0" : {
     },
@@ -25,8 +27,8 @@
 
     },
     "task_4" : {
-        "EFA_Comm_Uniq_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/EFA_communality_and_uniqueness.csv",
-        "EFA_loadings_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/EFA_loadings.csv",
+        "EFA_comm_uniq_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results/EFA_communality_and_uniqueness.csv",
+        "EFA_loadings_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results/EFA_loadings.csv",
         "factor_num" : 8,
         "communality_thr" : 0.5,
         "loading_thr" : 0.7,
@@ -45,7 +47,8 @@
         "binary_outcomes" : ["insomnia", "EDS", "depression", "poor_sleeper"],
         "binary_train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
         "covariates" : [],
-        "test_data_2018_dir" : ""
+        "test_data_2018_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
+        "regression_var" : ""
 
     }
 }

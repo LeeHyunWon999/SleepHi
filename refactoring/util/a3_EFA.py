@@ -1,6 +1,6 @@
 from util.packages import *
 
-def scree_plot(args, df_EFA, fa_vars) : 
+def scree_plot(args, df_EFA, fa_vars, RESULTS_DIR) : 
     # --- 정제 단계 ---
     X = df_EFA[fa_vars].copy()
     X = X.apply(pd.to_numeric, errors='coerce')
@@ -46,7 +46,8 @@ def scree_plot(args, df_EFA, fa_vars) :
     plt.xlabel('Factor')
     plt.ylabel('Eigenvalue')
     plt.title('Scree Plot')
-    global RESULTS_DIR # plot 저장하기
+
+    # plot 저장하기
     plt.savefig(os.path.join(RESULTS_DIR, "EFA_scree_plot.png"))
     # plt.show()
 
@@ -78,9 +79,7 @@ def preprocess_for_fa(df, fa_vars, min_var=1e-12):
     return X
 
 
-def efa_task(args, X_imp, N_FACTORS) : 
-    
-    global RESULTS_DIR # plot 저장하기
+def efa_task(args, X_imp, N_FACTORS, RESULTS_DIR) : 
 
     # 1-요인일 때 varimax 회전은 의미가 거의 없음(keep 그대로 사용해도 무방)
     fa = FactorAnalyzer(n_factors=N_FACTORS, rotation="promax")

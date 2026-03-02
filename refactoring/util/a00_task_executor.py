@@ -24,8 +24,10 @@ def etc_jobs(args) :
 
 
 
-def preprocess(args) : 
+def preprocess(args, RANDOM_SEED, DATA_DIR) : 
 
+
+    print(args)
     
     DATA_FILE = args.data_file         # 설문 데이터(.xlsx)
     META_FILE = args.meta_file       # 변수 메타데이터(.xlsx)
@@ -116,7 +118,6 @@ def preprocess(args) :
     df[num_cols] = (df[num_cols] - df[num_cols].mean()) / df[num_cols].std(ddof=0)
 
 
-    global RANDOM_SEED
 
     # 데이터셋 5:5로 분할 (EFA용, CFA용)
     df_EFA, df_CFA = train_test_split(df, test_size=0.5, random_state=RANDOM_SEED)
@@ -157,7 +158,6 @@ def preprocess(args) :
 
 
     # df_EFA, df_CFA, df_EFA_raw, df_CFA_raw 저장 (전처리 쪽이니 RESULT_DIR이 아닌 DATA_DIR에 저장)
-    global DATA_DIR    
 
     df_EFA.to_csv(os.path.join(DATA_DIR, "df_EFA.csv"), index=False)
     df_CFA.to_csv(os.path.join(DATA_DIR, "df_CFA.csv"), index=False)
@@ -183,19 +183,19 @@ def kmo_bartlett(args) :
 
 
 
-def efa(args) :
+def efa(args, DATA_DIR, RESULTS_DIR) :
     # 데이터 불러오기
-    df_EFA = pd.read_csv(DATA_DIR, args.df_EFA_dir)
+    df_EFA = pd.read_csv(os.path.join(DATA_DIR, args.df_EFA_dir))
 
     with open(args.expert_checked_var_list_dir, "r", encoding="utf-8") as f: # 변수 목록 그대로 가져오기
         fa_vars = json.load(f)
     
     # Scree plot 그리기
-    scree_plot(args, df_EFA, fa_vars)
+    scree_plot(args, df_EFA, fa_vars, RESULTS_DIR)
 
     # 원랜 요인 수 정하는 과정이 있으나, 일단 스킵하고 자동진행(스킵여부 및 자동진행시 요인수는 config에서 조정)
     if args.skip_factor_num : 
-        N_FACTOS = args.factor_num_at_skip
+        N_FACTORS = args.factor_num_at_skip
     else : 
         print("출력된 스크리 플롯을 보고 요인 수를 입력하시오 : ")
         N_FACTORS = int(input())
@@ -208,18 +208,19 @@ def efa(args) :
         raise ValueError(f"N_FACTORS={N_FACTORS}가 허용치({max_factors})를 초과")
     
     # EFA 수행
-    efa_task(args, X_imp, N_FACTORS)
+    efa_task(args, X_imp, N_FACTORS, RESULTS_DIR)
 
 
 
-def cfa(args) :
+def cfa(args, RESULTS_DIR) :
     # 데이터 불러오기
-    EFA_comm_and_uniq = pd.read_csv(args.efa_comm_uniq_dir)
-    EFA_loadings = pd.read_csv(args.efa_loadings_dir)
+    EFA_comm_and_uniq = pd.read_csv(args.EFA_comm_uniq_dir, index_col=0)
+    EFA_loadings = pd.read_csv(args.EFA_loadings_dir, index_col=0)
     N_FACTORS = args.factor_num
 
     # 결과 바탕으로 유효한 요인 필터링
     cfa_refined = refine_for_cfa(
+    RESULTS_DIR=RESULTS_DIR,
     result=EFA_comm_and_uniq,
     loadings=EFA_loadings,
     n_factors=N_FACTORS, # 위에서 설정된 값으로 진행
@@ -228,7 +229,7 @@ def cfa(args) :
     cross_loading_thr=args.cross_loading_thr  # 1위 요인과 2위 요인 loading 차이 기준
     )
 
-    desc = make_cfa_description(cfa_refined["factor_groups"]) # 자동으로 CFA 구조식(desc) 생성
+    desc = make_cfa_description(cfa_refined["factor_groups"], RESULTS_DIR) # 자동으로 CFA 구조식(desc) 생성
 
     if args.skip_desc : # 자동 구조식 대신 전문가 지식 쓰려는 경우 (일단 우린 이렇게 할 것)
         with open(args.expert_desc, "r", encoding="utf-8") as f:
@@ -236,8 +237,8 @@ def cfa(args) :
     
     # semopy의 Model 사용하여 CFA 모델링 수행 (df_CFA도 로드)
     df_CFA = pd.read_csv(args.df_CFA_dir)
-    stats = CFA_task(args, desc, df_CFA)
-    CFA_visualization(args, stats) # 시각화
+    stats = CFA_task(args, desc, df_CFA, RESULTS_DIR)
+    CFA_visualization(args, stats, RESULTS_DIR) # 시각화
 
 
 
@@ -246,11 +247,10 @@ def cfa(args) :
 
 
 # outcome 변수들을 이용한 평가
-def outcome_check(args) :
+def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     
     # 변수 할당
 
-    global RESULTS_DIR
     
     with open(args.expert_desc, "r", encoding="utf-8") as f:
         desc = f.read()
@@ -297,7 +297,6 @@ def outcome_check(args) :
     factor_scores_df = factor_scores_axes
 
     # 저장
-    global RESULTS_DIR
     factor_scores_axes.to_csv(os.path.join(RESULTS_DIR, "outcome_factor_scores.csv"), encoding="utf-8-sig")
     scoring_weights_axes.to_csv(os.path.join(RESULTS_DIR, "outcome_scoring_weights.csv"), encoding="utf-8-sig")
 
@@ -438,5 +437,11 @@ def outcome_check(args) :
 
     # 시각화
     
+    visual_task1_ols(args, ols_results, RESULTS_DIR)
+    visual_task1_ttest(args, ttest_results, RESULTS_DIR)
+    visual_task1_mwu(args, mwu_results, RESULTS_DIR)
 
 
+    # 특정 변수 대상으로 한 번의 regression 수행
+
+    
