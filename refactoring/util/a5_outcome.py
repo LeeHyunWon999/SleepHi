@@ -961,6 +961,7 @@ def visual_task1_ols(args, ols: pd.DataFrame, RESULTS_DIR) :
 
     fig1.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
     fig1.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_OLS_f2_heatmap.png"))
 
 
 
@@ -991,7 +992,7 @@ def visual_task1_ols(args, ols: pd.DataFrame, RESULTS_DIR) :
 
     fig2.tight_layout()
 
-    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_OLS_f2_and_R2.png"))
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_OLS_R2.png"))
     # plt.show()
 
 
@@ -1028,7 +1029,7 @@ def visual_task1_ttest(args, tt: pd.DataFrame, RESULTS_DIR) :
 # RBC 해석 : +면 group0이 더 큰 경향, -면 group1이 더 큰 경향
 # 절댓값이 클수록 차이가 큼
 # -----------------------------
-def plot_mwu_effectsize_bar(df:pd.DataFrame, *, alpha: float = 0.05, top_k: int = 30):
+def plot_mwu_effectsize_bar(df:pd.DataFrame, *, alpha: float = 0.05, top_k: int = 30, RESULTS_DIR) :
 
     sig = df[np.isfinite(df["p_adj"]) & (df["p_adj"] < alpha)].copy()
     if sig.empty:
@@ -1059,7 +1060,7 @@ def plot_mwu_effectsize_bar(df:pd.DataFrame, *, alpha: float = 0.05, top_k: int 
         ax.text(v, i, f"{v:.3f}", va="center", ha=("left" if v >= 0 else "right"))
 
     fig.tight_layout()
-    plt.show()
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_MWU_effectsize_bar.png"))
 
 
 
@@ -1079,7 +1080,8 @@ def plot_mwu_padj_heatmap_with_text(
     alpha: float = 0.05,
     fmt: str = ".3f",
     cmap: str = "viridis",
-    show_only_significant: bool = False
+    show_only_significant: bool = False,
+    RESULTS_DIR
 ):
 
     # pivot: rows = outcome, cols = factor
@@ -1130,14 +1132,227 @@ def plot_mwu_padj_heatmap_with_text(
     ax.set_ylabel("Binary outcome")
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task1_MWU_padj_heatmap.png"))
 
 
 
-def visual_task1_mwu(args, mwu_results: pd.DataFrame) : 
-    plot_mwu_effectsize_bar(mwu_results, alpha=0.05, top_k=30)
-    plot_mwu_padj_heatmap_with_text(mwu_results)
+def visual_task1_mwu(args, mwu_results: pd.DataFrame, RESULTS_DIR) : 
+    plot_mwu_effectsize_bar(mwu_results, alpha=0.05, top_k=30, RESULTS_DIR=RESULTS_DIR)
+    plot_mwu_padj_heatmap_with_text(mwu_results, RESULTS_DIR=RESULTS_DIR)
 
 
 
+
+# pearson, scatter, boxplot
+def visual_task2_pearson_scatter_box(args, df_fs, RESULTS_DIR) : 
+    # =========================================================
+    # 설정: outcome 표시 순서 (요구한 순서로 고정)
+    # =========================================================
+    PREFERRED_CONT_OUTCOMES = args.continuous_outcomes
+    PREFERRED_BIN_OUTCOMES  = args.binary_outcomes
+
+    # =========================================================
+    # 0) factor score 컬럼 자동 탐지 (원본 로직 유지)
+    # =========================================================
+    def infer_factor_score_cols(df: pd.DataFrame, prefixes=("Factor_", "FS_", "Axis_", "FS_Factor")) -> list[str]:
+        cols = []
+        for c in df.columns:
+            if any(str(c).startswith(p) for p in prefixes):
+                cols.append(c)
+
+        def _key(x):
+            s = str(x)
+            m = re.search(r"(\d+)$", s)
+            return (s[:m.start()] if m else s, int(m.group(1)) if m else -1, s)
+
+        return sorted(cols, key=_key)
+
+    # =========================================================
+    # 0-1) 리스트 원하는 순서로 고정 + (df에 존재하는 것만) + (나머지는 뒤에 붙이기 옵션)
+    #     - 지금은 원하는 순서만 쓰는 모드로 작성
+    # =========================================================
+    def pick_in_order(df: pd.DataFrame, preferred: list[str]) -> list[str]:
+        return [c for c in preferred if c in df.columns]
+
+    # =========================================================
+    # 1) Pearson r 행렬 계산 (원본과 동일하게 pearsonr 사용)
+    # =========================================================
+    def corr_matrix(df: pd.DataFrame, factors: list[str], outcomes: list[str]) -> tuple[pd.DataFrame, pd.DataFrame]:
+        r_mat = pd.DataFrame(index=outcomes, columns=factors, dtype=float)
+        p_mat = pd.DataFrame(index=outcomes, columns=factors, dtype=float)
+
+        for y in outcomes:
+            for x in factors:
+                sub = df[[x, y]].dropna()
+                if len(sub) < 3:
+                    r, p = np.nan, np.nan
+                else:
+                    r, p = pearsonr(sub[x].astype(float), sub[y].astype(float))
+                r_mat.loc[y, x] = r
+                p_mat.loc[y, x] = p
+
+        return r_mat, p_mat
+
+    # =========================================================
+    # 2) Scatter grid: rows=outcomes, cols=factors (원본 regplot 유지)
+    # =========================================================
+    def scatter_grid(df: pd.DataFrame, factors: list[str], outcomes: list[str], *, max_outcomes_per_fig: int = 6):
+        for start in range(0, len(outcomes), max_outcomes_per_fig):
+            outs = outcomes[start:start + max_outcomes_per_fig]
+
+            nrows, ncols = len(outs), len(factors)
+            fig, axes = plt.subplots(nrows, ncols, figsize=(3.2*ncols, 2.8*nrows), squeeze=False)
+
+            for i, y in enumerate(outs):
+                for j, x in enumerate(factors):
+                    ax = axes[i, j]
+                    sub = df[[x, y]].dropna()
+
+                    # 원본 스타일 유지: regplot 기본 색/축 자동 스케일
+                    if len(sub) >= 2:
+                        sns.regplot(
+                            data=sub, x=x, y=y, ax=ax,
+                            scatter_kws={"alpha": 0.6, "s": 14},
+                            line_kws={}
+                        )
+
+                    # 배치: 아래 행에 factor, 왼쪽 열에 outcome
+                    ax.set_xlabel(x if i == nrows - 1 else "")
+                    ax.set_ylabel(y if j == 0 else "")
+
+                    # r, p 표시(원본과 동일)
+                    if len(sub) >= 3:
+                        r, p = pearsonr(sub[x].astype(float), sub[y].astype(float))
+                        ax.set_title(f"r={r:.2f}, p={p:.2g}", fontsize=10)
+                    else:
+                        ax.set_title("n<3", fontsize=10)
+
+            fig.suptitle("Scatter (rows: outcomes, cols: factors)", y=1.02, fontsize=14)
+            plt.tight_layout()
+            plt.savefig(os.path.join(RESULTS_DIR, f"outcome_task2_scatter_grid_{start//max_outcomes_per_fig + 1}.png"))
+
+    # =========================================================
+    # 3) Box grid: rows=outcomes, cols=factors (원본 box/strip 유지)
+    # =========================================================
+    def box_grid(df: pd.DataFrame, factors: list[str], outcomes: list[str],
+                *, max_outcomes_per_fig: int = 6, show_strip: bool = True):
+
+        for start in range(0, len(outcomes), max_outcomes_per_fig):
+            outs = outcomes[start:start + max_outcomes_per_fig]
+
+            nrows, ncols = len(outs), len(factors)
+            fig, axes = plt.subplots(nrows, ncols, figsize=(3.2*ncols, 2.8*nrows), squeeze=False)
+
+            for i, y in enumerate(outs):
+                for j, x in enumerate(factors):
+                    ax = axes[i, j]
+                    sub = df[[x, y]].dropna()
+
+                    if len(sub) > 0:
+                        sns.boxplot(data=sub, x=y, y=x, ax=ax)
+                        if show_strip:
+                            sns.stripplot(data=sub, x=y, y=x, ax=ax, alpha=0.5, jitter=True, size=2.8)
+
+                    # 열 제목: factor (첫 행만)
+                    if i == 0:
+                        ax.set_title(x, fontsize=11)
+
+                    # 행 라벨: outcome (첫 열만)
+                    ax.set_ylabel(y if j == 0 else "")
+
+                    # 원본 유지: x축 라벨 제거
+                    ax.set_xlabel("")
+
+            fig.suptitle("Boxplot (rows: binary outcomes, cols: factors)", y=1.02, fontsize=14)
+            plt.tight_layout()
+
+        # 마지막 fig 저장 (반복문 밖에서)
+        plt.savefig(os.path.join(RESULTS_DIR, f"outcome_task2_box_grid_{start//max_outcomes_per_fig + 1}.png"))
+
+    # =========================================================
+    # 실행 파트 (한 번에 3개 출력)
+    #   - df_fs가 이미 존재한다고 가정
+    # =========================================================
+    factor_cols = infer_factor_score_cols(df_fs)
+    cont_outcomes = pick_in_order(df_fs, PREFERRED_CONT_OUTCOMES)
+    bin_outcomes  = pick_in_order(df_fs, PREFERRED_BIN_OUTCOMES)
+
+    print("Detected factor score columns:", factor_cols)
+    print("Continuous outcomes (ordered):", cont_outcomes)
+    print("Binary outcomes (ordered):", bin_outcomes)
+
+    # 1) Pearson heatmap (원본 스타일: 데이터 범위 기반 vmin/vmax 유지)
+    r_mat, p_mat = corr_matrix(df_fs, factor_cols, cont_outcomes)
+    vmin, vmax = np.nanmin(r_mat.values), np.nanmax(r_mat.values)
+
+    plt.figure(figsize=(1.2*len(factor_cols) + 4, 0.6*len(cont_outcomes) + 3))
+    sns.heatmap(
+        r_mat,
+        annot=True,
+        fmt=".2f",
+        center=0,
+        vmin=vmin,
+        vmax=vmax,
+        cmap="RdBu_r",
+        linewidths=0.5,
+        cbar_kws={"label": "Pearson r"}
+    )
+    plt.title("Pearson correlation (rows: outcomes, cols: factors)")
+    plt.xlabel("Factor score")
+    plt.ylabel("Outcome")
+    plt.tight_layout()
+    plt.savefig(os.path.join(RESULTS_DIR, "outcome_task2_pearson_heatmap.png"))
+
+    # 2) Scatter grid
+    scatter_grid(df_fs, factor_cols, cont_outcomes, max_outcomes_per_fig=6)
+
+    # 3) Box grid
+    box_grid(df_fs, factor_cols, bin_outcomes, max_outcomes_per_fig=6, show_strip=True)
+
+
+
+
+
+# linear regression
+
+
+
+
+
+# =========================================================
+# 1) Helper: build factor scores for df_EFA using scoring weights
+#    IMPORTANT: 표준화 스코프를 df_CFA(train)로 고정해서 df_EFA도 같은 스케일로 변환
+# =========================================================
+def make_factor_scores_from_weights(
+    df_new: pd.DataFrame,
+    *,
+    observed_cols: list[str],
+    W_axes: pd.DataFrame,   # rows=observed, cols=factors
+    train_means: pd.Series,
+    train_stds: pd.Series,
+) -> pd.DataFrame:
+    """
+    new data -> (standardize using train stats) -> multiply by scoring weights -> factor scores
+
+    Returns DataFrame with same factor columns as W_axes.columns
+    """
+    # 1) align observed columns
+    X = df_new[observed_cols].copy()
+
+    # 2) standardize with train stats (avoid leakage)
+    #    std=0 방지
+    stds = train_stds.replace(0, np.nan)
+    Xz = (X - train_means) / stds
+    Xz = Xz.fillna(0.0)
+
+    # 3) align weights
+    W = W_axes.copy()
+    # ensure W has rows in observed_cols order
+    W = W.reindex(index=observed_cols)
+
+    # 4) factor scores
+    Fs = Xz.to_numpy(dtype=float) @ W.to_numpy(dtype=float)  # (n_samples, n_factors)
+    fs_df = pd.DataFrame(Fs, index=df_new.index, columns=W.columns)
+
+    return fs_df
 

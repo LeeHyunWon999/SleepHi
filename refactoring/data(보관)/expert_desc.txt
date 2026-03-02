@@ -1,0 +1,10 @@
+Factor1 =~ MCTQ_BTa_c + MCTQ_SOa_c
+Factor2 =~ MCTQ_SJL_bed + MCTQ_SJL
+Factor3 =~ Pristine_SE + SE_mismatch_pristine
+Factor4 =~ sex + D3_1_ht + D3_2_wt
+Factor5 =~ MCTQ_GUa + MCTQ_SEa
+Factor1 ~~ 1*Factor1
+Factor2 ~~ 1*Factor2
+Factor3 ~~ 1*Factor3
+Factor4 ~~ 1*Factor4
+Factor5 ~~ 1*Factor5

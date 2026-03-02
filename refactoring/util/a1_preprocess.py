@@ -220,3 +220,115 @@ def apply_relative_to_mean(df, meta):
 
 
 
+def summarize_and_plot_continuous_and_categorical(
+    df: pd.DataFrame,
+    categorical_vars: list[str],
+    continuous_vars: list[str],
+    RESULTS_DIR: str,
+    *,
+    top_k_categories: int = 5,   # 범주형 변수당 상위 K개 범주만 표시
+    min_count: int = 1,          # 범주 빈도가 너무 작은 값 제외(1이면 제외 안 함)
+    figsize_cont: tuple[int, int] = (16, 10),
+    figsize_cat: tuple[int, int] = (18, 10),
+):
+    """
+    - 연속형: mean/std 테이블 출력 + 1개 plot(평균/표준편차)
+    - 범주형: 각 변수별 상위 K 범주 비율을 긴 형태로 모아 1개 plot
+    - 저장: out_dir에 PNG 2장 + CSV 2개
+    """
+
+    # -------------------------
+    # 1) Continuous: mean/std
+    # -------------------------
+    cont_cols = [c for c in continuous_vars if c in df.columns]
+    cont_df = df[cont_cols].apply(pd.to_numeric, errors="coerce")
+
+    cont_stats = pd.DataFrame({
+        "mean": cont_df.mean(axis=0, skipna=True),
+        "std":  cont_df.std(axis=0, ddof=0, skipna=True),
+        "n":    cont_df.notna().sum(axis=0),
+    }).sort_values("std", ascending=False)
+
+    cont_stats.to_csv(os.path.join(RESULTS_DIR, "data_continuous_mean_std.csv"), encoding="utf-8-sig")
+
+    # Plot: mean/std (side-by-side bars)
+    # 너무 많으면 가독성 떨어져서 상위 40개만 시각화(필요 시 바꾸면 됨)
+    show_n = min(40, len(cont_stats))
+    cont_show = cont_stats.head(show_n)
+
+    fig = plt.figure(figsize=figsize_cont)
+    ax = fig.add_subplot(111)
+
+    x = np.arange(len(cont_show))
+    w = 0.4
+    ax.bar(x - w/2, cont_show["mean"].values, width=w, label="Mean")
+    ax.bar(x + w/2, cont_show["std"].values,  width=w, label="Std (ddof=0)")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(cont_show.index.tolist(), rotation=90)
+    ax.set_title(f"Continuous variables: mean & std (top {show_n} by std)")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(os.path.join(RESULTS_DIR, "data_continuous_mean_std.png"), dpi=200)
+    plt.close(fig)
+
+    # -------------------------
+    # 2) Categorical: proportions
+    # -------------------------
+    cat_cols = [c for c in categorical_vars if c in df.columns]
+    rows = []
+
+    for c in cat_cols:
+        s = df[c]
+
+        # 숫자/문자 섞여도 안전하게: 문자열로 통일하되 NaN은 제외
+        s2 = s.dropna().astype(str)
+
+        if s2.empty:
+            continue
+
+        vc = s2.value_counts(dropna=False)
+        vc = vc[vc >= min_count]
+
+        # 상위 K개만, 나머지는 Other로 묶기
+        top = vc.head(top_k_categories)
+        rest = vc.iloc[top_k_categories:].sum()
+
+        total = vc.sum()
+        for level, cnt in top.items():
+            rows.append({"variable": c, "category": level, "count": int(cnt), "prop": float(cnt) / float(total)})
+
+        if rest > 0:
+            rows.append({"variable": c, "category": "Other", "count": int(rest), "prop": float(rest) / float(total)})
+
+    cat_props = pd.DataFrame(rows)
+    cat_props.to_csv(os.path.join(RESULTS_DIR, "data_category_proportions.csv"), index=False, encoding="utf-8-sig")
+
+    # Plot: categorical proportions (grouped bars by variable)
+    # 변수 수가 많으면 복잡해지니, "가장 불균형한 변수"부터 N개만 보여주도록(여기선 25개)
+    # 불균형 지표: 최대 prop
+    if not cat_props.empty:
+        imbalance = cat_props.groupby("variable")["prop"].max().sort_values(ascending=False)
+        show_vars = imbalance.head(25).index.tolist()
+        cat_show = cat_props[cat_props["variable"].isin(show_vars)].copy()
+
+        # variable 순서 고정
+        cat_show["variable"] = pd.Categorical(cat_show["variable"], categories=show_vars, ordered=True)
+        cat_show = cat_show.sort_values(["variable", "prop"], ascending=[True, False])
+
+        fig = plt.figure(figsize=figsize_cat)
+        ax = fig.add_subplot(111)
+
+        # 긴 형태를 한 축에 쌓지 말고, "variable|category"로 펼친 grouped bar 느낌으로 표현
+        labels = [f"{v} | {k}" for v, k in zip(cat_show["variable"], cat_show["category"])]
+        ax.bar(np.arange(len(cat_show)), cat_show["prop"].values)
+
+        ax.set_xticks(np.arange(len(cat_show)))
+        ax.set_xticklabels(labels, rotation=90)
+        ax.set_title(f"Categorical variables: top-{top_k_categories} category proportions (showing up to 25 variables)")
+        ax.set_ylabel("Proportion")
+        fig.tight_layout()
+        fig.savefig(os.path.join(RESULTS_DIR, "data_category_proportions.png"), dpi=200)
+        plt.close(fig)
+
+    return cont_stats, cat_props

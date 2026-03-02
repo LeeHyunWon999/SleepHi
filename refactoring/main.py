@@ -53,7 +53,7 @@ def main() :
             a00_task_executor.etc_jobs(args.task_0)
         elif task == 1 :
             # 데이터 전처리 함수
-            a00_task_executor.preprocess(args.task_1, RANDOM_SEED, DATA_DIR)
+            a00_task_executor.preprocess(args.task_1, RANDOM_SEED, DATA_DIR, RESULTS_DIR)
         elif task == 2 :
             # KMO, Bartlett's test 함수
             a00_task_executor.kmo_bartlett(args.task_2)

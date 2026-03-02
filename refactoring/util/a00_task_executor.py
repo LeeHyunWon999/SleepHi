@@ -24,7 +24,7 @@ def etc_jobs(args) :
 
 
 
-def preprocess(args, RANDOM_SEED, DATA_DIR) : 
+def preprocess(args, RANDOM_SEED, DATA_DIR, RESULTS_DIR) : 
 
 
     print(args)
@@ -71,7 +71,6 @@ def preprocess(args, RANDOM_SEED, DATA_DIR) :
 
 
 
-
     # ===== 시간 값 변환 =====
     
     report = convert_time_columns_inplace_for_efa(df, continuous_vars)
@@ -100,6 +99,30 @@ def preprocess(args, RANDOM_SEED, DATA_DIR) :
     df = apply_relative_to_mean(df, meta)
 
 
+    # 표준화 없는 데이터 미리 분리
+    df_raw = df.copy()
+
+
+
+
+
+    # (추가) 표준화/시간변환 전에 분포 요약 + plot 2장 저장
+    cont_stats, cat_props = summarize_and_plot_continuous_and_categorical(
+        df=df,
+        categorical_vars=categorical_vars,
+        continuous_vars=continuous_vars,
+        RESULTS_DIR=RESULTS_DIR,          # 혹은 RESULTS_DIR
+        top_k_categories=5
+    )
+    print(cont_stats.head(10))
+    print(cat_props.head(10))
+
+
+
+
+
+
+
     # z-score 표준화 (평균 0, 표준편차 1), 동시에 임시용으로 표준화하지 않은 원본 열도 유지
 
     # dtype이 number면 모두 표준화 : 사실상 전부 표준화 (카테고리값도 전부 숫자이므로)
@@ -108,14 +131,25 @@ def preprocess(args, RANDOM_SEED, DATA_DIR) :
     print(len(num_cols))
 
 
-    # 표준화 없는 데이터 미리 분리
 
-    df_raw = df.copy()
 
 
 
     # 수치형 열 전부 표준화 (원본 df 자체에 덮어쓰기)
     df[num_cols] = (df[num_cols] - df[num_cols].mean()) / df[num_cols].std(ddof=0)
+
+
+
+
+
+    # # (2018 데이터 분리용) 이대로 저장
+    # df.to_csv(os.path.join(DATA_DIR, "df_2018.csv"), index=False, encoding="utf-8-sig")
+    # df_raw.to_csv(os.path.join(DATA_DIR, "df_2018_raw.csv"), index=False, encoding="utf-8-sig")
+
+    # import sys
+    # sys.exit(0)
+
+
 
 
 
@@ -442,6 +476,154 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     visual_task1_mwu(args, mwu_results, RESULTS_DIR)
 
 
+    # pearson, scatter, boxplot
+    visual_task2_pearson_scatter_box(args, df_fs, RESULTS_DIR)
+
+
+
     # 특정 변수 대상으로 한 번의 regression 수행
 
+    # =========================================================
+    # 0) User config
+    # =========================================================
+    TARGET = args.regression_var  # 회귀분석 종속변수 (예: PSQI_sum_WA)
+    N_SPLITS = args.N_SPLITS  # 교차검증 분할 수
+    # RANDOM_SEED은 이미 인자로 받음
+
+
+    scoring_weights_df = pd.read_csv(args.scoring_weights_dir, index_col=0)  # factor score 만드는 데 쓰인 가중치 행렬 (열: factor score, 행: 관측변수가 돼야 함)
+
+    W_axes = scoring_weights_df.T  # 전치: rows=observed, cols=factors (여기선 observed_cols가 행, factor score가 열인 형태로 가정하므로 뒤집어야 함)
+
+    # factor score column names (train features)
+    # - factor_scores_df.columns 가 곧 factor 축 이름이라고 가정
+    factor_cols = list(factor_scores_df.columns)
+
+
+
+
+
     
+    # =========================================================
+    # 2) Build TRAIN set (df_CFA)
+    #    - features: factor_scores_df
+    #    - target: df_CFA[TARGET]
+    # =========================================================
+    # target y_train
+    y_all = df_CFA[TARGET].copy()
+
+    # align indices (intersection) to be safe
+    common_idx = factor_scores_df.index.intersection(y_all.dropna().index)
+    X_all = factor_scores_df.loc[common_idx, factor_cols].copy()
+    y_all = y_all.loc[common_idx].astype(float)
+
+    # =========================================================
+    # 3) 5-fold CV on TRAIN set
+    # =========================================================
+    kf = KFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_SEED)
+
+    fold_rows = []
+    for fold, (tr_idx, va_idx) in enumerate(kf.split(X_all), start=1):
+        X_tr, X_va = X_all.iloc[tr_idx], X_all.iloc[va_idx]
+        y_tr, y_va = y_all.iloc[tr_idx], y_all.iloc[va_idx]
+
+
+
+        model = LinearRegression()
+        model.fit(X_tr, y_tr)
+
+        # predictions
+        pred_tr = model.predict(X_tr)
+        pred_va = model.predict(X_va)
+
+        # metrics
+        def _rmse(y_true, y_pred):
+            return np.sqrt(mean_squared_error(y_true, y_pred))
+
+        fold_rows.append({
+            "fold": fold,
+            "n_train": int(len(y_tr)),
+            "n_valid": int(len(y_va)),
+            "r2_train": float(r2_score(y_tr, pred_tr)),
+            "r2_valid": float(r2_score(y_va, pred_va)),
+            "mae_train": float(mean_absolute_error(y_tr, pred_tr)),
+            "mae_valid": float(mean_absolute_error(y_va, pred_va)),
+            "rmse_train": float(_rmse(y_tr, pred_tr)),
+            "rmse_valid": float(_rmse(y_va, pred_va)),
+        })
+
+    cv_df = pd.DataFrame(fold_rows)
+    print("=== 5-fold CV (per fold) ===")
+    print(cv_df)
+
+    summary = cv_df.drop(columns=["fold", "n_train", "n_valid"]).agg(["mean", "std"]).T
+    print("\n=== 5-fold CV (mean ± std) ===")
+    print(summary)
+
+
+    # =========================================================
+    # 4) Build TEST set (df_EFA)
+    #    - Create factor scores for df_EFA using scoring weights from df_CFA scope
+    # =========================================================
+    # train stats for standardization of observed indicators
+    train_means = df_CFA[observed_cols].mean()
+    train_stds  = df_CFA[observed_cols].std(ddof=0)
+
+    # factor scores on df_EFA
+    efa_factor_scores = make_factor_scores_from_weights(
+        df_EFA,
+        observed_cols=observed_cols,
+        W_axes=W_axes, # 코드에선 observed_cols가 행, factor score가 열인 형태로 가정, 난 뒤집어서 썼으므로 여기서 다시 전치
+        train_means=train_means,
+        train_stds=train_stds,
+    )
+
+    # align test X/y
+    y_test = df_EFA[TARGET].copy()
+    test_idx = efa_factor_scores.index.intersection(y_test.dropna().index)
+
+    X_test = efa_factor_scores.loc[test_idx, W_axes.columns].copy()
+    y_test = y_test.loc[test_idx].astype(float)
+
+    # =========================================================
+    # 5) Fit FINAL model on full TRAIN, evaluate once on TEST
+    # =========================================================
+    final_model = LinearRegression()
+    final_model.fit(X_all, y_all)
+
+    # ✅ (추가) test 컬럼명을 train 컬럼명과 동일하게 강제 + 순서도 동일하게 (넘버링 형식 불일치 수정용)
+    X_test = X_test.copy()
+    X_test.columns = X_all.columns
+    X_test = X_test.reindex(columns=X_all.columns)
+
+    assert X_test.shape[1] == X_all.shape[1], "Train/Test factor count mismatch"
+
+    pred_test = final_model.predict(X_test)
+
+
+    test_metrics = {
+        "n_train_total": int(len(y_all)),
+        "n_test": int(len(y_test)),
+        "r2_test": float(r2_score(y_test, pred_test)),
+        "mae_test": float(mean_absolute_error(y_test, pred_test)),
+        "rmse_test": float(np.sqrt(mean_squared_error(y_test, pred_test))),
+    }
+    print("\n=== TEST (df_EFA) evaluation ===")
+    print(pd.Series(test_metrics))
+
+    # (optional) coefficients
+    coef_df = pd.DataFrame({
+        "factor": X_all.columns,
+        "coef": final_model.coef_,
+    }).sort_values("coef", key=lambda s: s.abs(), ascending=False)
+    print("\n=== Final model coefficients (abs-sorted) ===")
+    print(coef_df)
+
+
+    # =====================================================
+    #  Save CSVs
+    # =====================================================
+    cv_df.to_csv(os.path.join(RESULTS_DIR, "cv_fold_results.csv"), index=False)
+    summary.to_csv(os.path.join(RESULTS_DIR, "cv_summary_mean_std.csv"))                  # index: metric, columns: mean/std
+    pd.Series(test_metrics).to_csv(os.path.join(RESULTS_DIR, "cv_test_metrics.csv"), header=False)
+    coef_df.to_csv(os.path.join(RESULTS_DIR, "cv_final_model_coefs.csv"), index=False)
