@@ -6,15 +6,15 @@
     "RANDOM_SEED" : 42,
     "DATA_DIR" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data",
     "RESULTS_DIR" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results",
-    "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
-    "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_variable_2018_2nd.xlsx",
+    "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_KSHS_2nd_data_250811.xlsx",
+    "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_Variable_250811.xlsx",
 
     "task_0" : {
     },
     "task_1" : {
         "data_2018_make_option" : true,
-        "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
-        "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_variable_2018_2nd.xlsx",
+        "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_KSHS_2nd_data_250811.xlsx",
+        "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_Variable_250811.xlsx",
         "var_threshold" : 1e-5
     }
 }

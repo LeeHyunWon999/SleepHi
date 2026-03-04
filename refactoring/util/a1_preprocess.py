@@ -152,9 +152,11 @@ def convert_time_columns_inplace_for_efa(df: pd.DataFrame, continuous_vars: list
 
     # 시간/지속시간 후보만 선별
     time_like_candidates = [c for c in continuous_vars if c in df.columns and not is_numeric_dtype(df[c]) and looks_time_like_series(df[c])]
+    print(time_like_candidates)
 
     for col in time_like_candidates:
         minutes, ok = series_to_minutes_strict(df[col])
+        ### 임시수정 : 이걸 안한다고 가정
         if ok.all():
             # 원본 열을 '분(float)'로 덮어쓰기
             df[col] = minutes.astype("float")

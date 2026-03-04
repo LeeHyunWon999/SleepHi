@@ -1,0 +1,20 @@
+{
+    "task_list" : [
+        0,1
+    ],
+
+    "RANDOM_SEED" : 42,
+    "DATA_DIR" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data",
+    "RESULTS_DIR" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results",
+    "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2011_1st.xlsx",
+    "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_variable_2011_1st.xlsx",
+
+    "task_0" : {
+    },
+    "task_1" : {
+        "data_2011_make_option" : true,
+        "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2011_1st.xlsx",
+        "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_variable_2011_1st.xlsx",
+        "var_threshold" : 1e-5
+    }
+}

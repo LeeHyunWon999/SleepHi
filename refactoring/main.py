@@ -67,11 +67,14 @@ def main() :
             # outcome test 함수 (예: 회귀분석)
             a00_task_executor.outcome_check(args.task_5, RESULTS_DIR, RANDOM_SEED)
         elif task == 6 : 
-            # 번외 0 : 2011, 2018 데이터셋 outcome test용으로 재작업하기
+            # 번외 0 : 2011, 2018 데이터셋 outcome 변수만 추리도록 작업하기
             a00_task_executor.data_rework(args.task_6, RESULTS_DIR, RANDOM_SEED)
         elif task == 7 : 
             # 번외 1 : 정제 끝난 데이터로 임시 outcome test
             a00_task_executor.primal_var_check(args.task_7, RESULTS_DIR, RANDOM_SEED)
+        elif task == 8 : 
+            # factor score을 이용해 특정 outcome을 대상으로 regression 수행
+            a00_task_executor.regression_test(args.task_8, RESULTS_DIR, RANDOM_SEED)
             
 
 

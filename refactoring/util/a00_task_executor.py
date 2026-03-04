@@ -4,6 +4,9 @@ from util.a2_kmo import *
 from util.a3_EFA import *
 from util.a4_CFA import *
 from util.a5_outcome import *
+from util.a6_visual_primal_var_check import *
+from util.a7_regression_temp import *
+from util.a8_regression_main import *
 
 
 def etc_jobs(args) :
@@ -53,7 +56,7 @@ def preprocess(args, RANDOM_SEED, DATA_DIR, RESULTS_DIR) :
     categorical_vars = [c for c in categorical_vars if c in df.columns]
     continuous_vars = [c for c in continuous_vars if c in df.columns]
 
-    # task6에 쓰기 위해 범주/연속 변수 리스트 저장
+    # task6에 쓰기 위해 범주/연속 변수 리스트 저장 (보류 : 이진이 아닌 ordinal은 이 분류에서 예외라 수작업으로 해야 할 듯)
     with open(os.path.join(DATA_DIR, "categorical_vars.json"), "w", encoding="utf-8") as f:
         json.dump(categorical_vars, f, ensure_ascii=False, indent=2)
     with open(os.path.join(DATA_DIR, "continuous_vars.json"), "w", encoding="utf-8") as f:
@@ -93,12 +96,12 @@ def preprocess(args, RANDOM_SEED, DATA_DIR, RESULTS_DIR) :
         print("\n[스킵 사유(문제 값 예시)]")
         print(report["issues"].to_string(index=False))
 
-    # EFA 투입 열 목록 (숫자형만)
-    efa_cols = report["efa_cols"]
-    print("\n[EFA 열 개수]:", len(efa_cols))
-    # 이제 바로 EFA:
-    # X_efa = df[efa_cols].copy()
-    # print("EFA 입력 크기:", X_efa.shape)
+    # # EFA 투입 열 목록 (숫자형만)
+    # efa_cols = report["efa_cols"]
+    # print("\n[EFA 열 개수]:", len(efa_cols))
+    # # 이제 바로 EFA:
+    # # X_efa = df[efa_cols].copy()
+    # # print("EFA 입력 크기:", X_efa.shape)
 
 
 
@@ -153,6 +156,13 @@ def preprocess(args, RANDOM_SEED, DATA_DIR, RESULTS_DIR) :
         df.to_csv(os.path.join(DATA_DIR, "df_2018.csv"), index=False, encoding="utf-8-sig")
         df_raw.to_csv(os.path.join(DATA_DIR, "df_2018_raw.csv"), index=False, encoding="utf-8-sig")
         print("2018 데이터 저장 완료. 작업 종료.")
+        sys.exit(0)
+
+    # (2011 데이터 분리하기 전에 저장용)
+    if getattr(args, "data_2011_make_option", False): # 데이터 분리 전용 config 파일에만 있는 옵션
+        df.to_csv(os.path.join(DATA_DIR, "df_2011.csv"), index=False, encoding="utf-8-sig")
+        df_raw.to_csv(os.path.join(DATA_DIR, "df_2011_raw.csv"), index=False, encoding="utf-8-sig")
+        print("2011 데이터 저장 완료. 작업 종료.")
         sys.exit(0)
 
 
@@ -556,186 +566,135 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
 
 
 
-    # 특정 변수 대상으로 한 번의 regression 수행
-
-    # =========================================================
-    # 0) User config
-    # =========================================================
-    TARGET = args.regression_var  # 회귀분석 종속변수 (예: PSQI_sum_WA)
-    N_SPLITS = args.N_SPLITS  # 교차검증 분할 수
-    # RANDOM_SEED은 이미 인자로 받음
-
-
-    scoring_weights_df = pd.read_csv(args.scoring_weights_dir, index_col=0)  # factor score 만드는 데 쓰인 가중치 행렬 (열: factor score, 행: 관측변수가 돼야 함)
-
-    W_axes = scoring_weights_df.T  # 전치: rows=observed, cols=factors (여기선 observed_cols가 행, factor score가 열인 형태로 가정하므로 뒤집어야 함)
-
-    # factor score column names (train features)
-    # - factor_scores_df.columns 가 곧 factor 축 이름이라고 가정
-    factor_cols = list(factor_scores_df.columns)
 
 
 
-
-
-    
-    # =========================================================
-    # 2) Build TRAIN set (df_CFA)
-    #    - features: factor_scores_df
-    #    - target: df_CFA[TARGET]
-    # =========================================================
-    # target y_train
-    y_all = df_CFA[TARGET].copy()
-
-    # align indices (intersection) to be safe
-    common_idx = factor_scores_df.index.intersection(y_all.dropna().index)
-    X_all = factor_scores_df.loc[common_idx, factor_cols].copy()
-    y_all = y_all.loc[common_idx].astype(float)
-
-    # =========================================================
-    # 3) 5-fold CV on TRAIN set
-    # =========================================================
-    kf = KFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_SEED)
-
-    fold_rows = []
-    for fold, (tr_idx, va_idx) in enumerate(kf.split(X_all), start=1):
-        X_tr, X_va = X_all.iloc[tr_idx], X_all.iloc[va_idx]
-        y_tr, y_va = y_all.iloc[tr_idx], y_all.iloc[va_idx]
-
-
-
-        model = LinearRegression()
-        model.fit(X_tr, y_tr)
-
-        # predictions
-        pred_tr = model.predict(X_tr)
-        pred_va = model.predict(X_va)
-
-        # metrics
-        def _rmse(y_true, y_pred):
-            return np.sqrt(mean_squared_error(y_true, y_pred))
-
-        fold_rows.append({
-            "fold": fold,
-            "n_train": int(len(y_tr)),
-            "n_valid": int(len(y_va)),
-            "r2_train": float(r2_score(y_tr, pred_tr)),
-            "r2_valid": float(r2_score(y_va, pred_va)),
-            "mae_train": float(mean_absolute_error(y_tr, pred_tr)),
-            "mae_valid": float(mean_absolute_error(y_va, pred_va)),
-            "rmse_train": float(_rmse(y_tr, pred_tr)),
-            "rmse_valid": float(_rmse(y_va, pred_va)),
-        })
-
-    cv_df = pd.DataFrame(fold_rows)
-    print("=== 5-fold CV (per fold) ===")
-    print(cv_df)
-
-    summary = cv_df.drop(columns=["fold", "n_train", "n_valid"]).agg(["mean", "std"]).T
-    print("\n=== 5-fold CV (mean ± std) ===")
-    print(summary)
-
-
-    # =========================================================
-    # 4) Build TEST set (df_EFA)
-    #    - Create factor scores for df_EFA using scoring weights from df_CFA scope
-    # =========================================================
-    # train stats for standardization of observed indicators
-    train_means = df_CFA[observed_cols].mean()
-    train_stds  = df_CFA[observed_cols].std(ddof=0)
-
-    # factor scores on df_EFA
-    efa_factor_scores = make_factor_scores_from_weights(
-        df_EFA,
-        observed_cols=observed_cols,
-        W_axes=W_axes, # 코드에선 observed_cols가 행, factor score가 열인 형태로 가정, 난 뒤집어서 썼으므로 여기서 다시 전치
-        train_means=train_means,
-        train_stds=train_stds,
-    )
-
-    # align test X/y
-    y_test = df_EFA[TARGET].copy()
-    test_idx = efa_factor_scores.index.intersection(y_test.dropna().index)
-
-    X_test = efa_factor_scores.loc[test_idx, W_axes.columns].copy()
-    y_test = y_test.loc[test_idx].astype(float)
-
-    # =========================================================
-    # 5) Fit FINAL model on full TRAIN, evaluate once on TEST
-    # =========================================================
-    final_model = LinearRegression()
-    final_model.fit(X_all, y_all)
-
-    # ✅ (추가) test 컬럼명을 train 컬럼명과 동일하게 강제 + 순서도 동일하게 (넘버링 형식 불일치 수정용)
-    X_test = X_test.copy()
-    X_test.columns = X_all.columns
-    X_test = X_test.reindex(columns=X_all.columns)
-
-    assert X_test.shape[1] == X_all.shape[1], "Train/Test factor count mismatch"
-
-    pred_test = final_model.predict(X_test)
-
-
-    test_metrics = {
-        "n_train_total": int(len(y_all)),
-        "n_test": int(len(y_test)),
-        "r2_test": float(r2_score(y_test, pred_test)),
-        "mae_test": float(mean_absolute_error(y_test, pred_test)),
-        "rmse_test": float(np.sqrt(mean_squared_error(y_test, pred_test))),
-    }
-    print("\n=== TEST (df_EFA) evaluation ===")
-    print(pd.Series(test_metrics))
-
-    # (optional) coefficients
-    coef_df = pd.DataFrame({
-        "factor": X_all.columns,
-        "coef": final_model.coef_,
-    }).sort_values("coef", key=lambda s: s.abs(), ascending=False)
-    print("\n=== Final model coefficients (abs-sorted) ===")
-    print(coef_df)
-
-
-    # =====================================================
-    #  Save CSVs
-    # =====================================================
-    cv_df.to_csv(os.path.join(RESULTS_DIR, "cv_fold_results.csv"), index=False)
-    summary.to_csv(os.path.join(RESULTS_DIR, "cv_summary_mean_std.csv"))                  # index: metric, columns: mean/std
-    pd.Series(test_metrics).to_csv(os.path.join(RESULTS_DIR, "cv_test_metrics.csv"), header=False)
-    coef_df.to_csv(os.path.join(RESULTS_DIR, "cv_final_model_coefs.csv"), index=False)
-
-
-# 번외 0 : 2011, 2018 데이터셋 outcome test용으로 재작업하기
+# 번외 0 : 2011, 2018 데이터셋 outcome 변수만 추리도록 작업하기
+# TODO : PSQI 변수가 2018 데이터셋에서 발견되지 않았음, 일단 그 변수 빼고 나머지 3개 변수(Q91_ISI_4 - dissatisfation, poor_sleeper)에 대해서만 작업할 것
+# 정확히는 저 변수들은 종속변수(y)임,
 def data_rework(args, RESULTS_DIR, RANDOM_SEED) :
-    pass
+    # 2011, 2018 데이터의 정규화, raw 총 4개 불러오기
+    df_2011 = pd.read_csv(args.df_2011_dir)
+    df_2011_raw = pd.read_csv(args.df_2011_raw_dir)
+    df_2018 = pd.read_csv(args.df_2018_dir)
+    df_2018_raw = pd.read_csv(args.df_2018_raw_dir)
+
+
+
+    # 2011, 2018 데이터 각각 통합 : 성별만 raw에서 가져오고 나머지 10개 변수는 정규화 한 쪽으로 진행
+    
+    # 리스트 열기
+    with open(args.expert_desc_list_ver_dir, "r", encoding="utf-8") as f:
+        factor_vars_list = json.load(f)
+
+
+
+    # 1. vars_list에서 '성별'을 제외한 변수들만 필터링
+    vars_except_gender = [col for col in factor_vars_list if col != "sex"]
+
+    # 2. 데이터프레임 결합
+    # temp_train_df에서는 '성별'을 제외한 나머지 변수를, 
+    # temp_train_df_raw에서는 '성별' 변수 하나만 가져와 옆으로(axis=1) 붙입니다.
+#    refined_df_2011 =  pd.concat([
+#        df_2011[vars_except_gender], 
+#        df_2011_raw[["sex"]]
+#    ], axis=1)
+
+    refined_df_2018 = pd.concat([
+        df_2018[vars_except_gender], 
+        df_2018_raw[["sex"]]
+    ], axis=1)
+
+    # 3. 결과 확인
+#    print(refined_df_2011.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
+#    print(refined_df_2011["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
+    print(refined_df_2018.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
+    print(refined_df_2018["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
+
+
+
+
+    # 4. 연속 & 이진 outcome 생성 (이것도 2개 년도 각각 필요)
+
+    # 연속 : 표준화된 걸로 가져오기
+#    refined_outcome_2011_conti = df_2011[["Q33_ISI_4", "PSQI_sum_WA"]]
+    refined_outcome_2018_conti = df_2018[["Q91_ISI_4"]] # 나중에 2018 데이터에 PSQI 총점 생기면 여기에 추가 : 어차피 이 메소드는 데이터만들기 1회용이고 안에서 직접 작업하는 부분이 있으니 하드코딩 무방
+
+
+
+    # 이진 : dissatisfaction은 Q91_ISI_4(연속값)에서 직접 작업하기, 이후 poor_sleeper과 합치면 끝
+
+    # 1. 조건에 따라 이진 변수 생성
+    # 1, 2점은 0(정상), 3~5점은 1(수면불만족)로 할당
+    # np.where(조건, 참일 때 값, 거짓일 때 값)
+#    isi_binary_2011 = np.where(df_2011_raw["Q33_ISI_4"] <= 2, 0, 1)
+    isi_binary_2018 = np.where(df_2018_raw["Q91_ISI_4"] <= 2, 0, 1)
+
+    # 2. 새로운 데이터프레임 구성 (총 2열)
+    # 새 변수명을 'isi_status' 등으로 지정하여 poor_sleeper와 함께 추출
+#    refined_outcome_2011_binary = pd.DataFrame({
+#        "dissatisfaction": isi_binary_2011,
+#        "poor_sleeper": df_2011_raw["poor_sleeper"]
+#    }, index=df_2011_raw.index) # 기존 인덱스 유지
+
+    refined_outcome_2018_binary = pd.DataFrame({
+        "dissatisfaction": isi_binary_2018,
+        "poor_sleeper": df_2018_raw["poor_sleeper"]
+    }, index=df_2018_raw.index) # 기존 인덱스 유지
+
+    # 3. 결과 확인
+#    print(refined_outcome_2011_binary.head())
+#    print(refined_outcome_2011_binary.value_counts()) # 각 조합별 빈도 확인
+    print(refined_outcome_2018_binary.head())
+    print(refined_outcome_2018_binary.value_counts()) # 각 조합별 빈도 확인
+
+    print("임시 : 조기종료")
+    sys.exit(0)
+
+    # 저장 대상 : 2011, 2018 둘 다 factor score 만들기용 데이터(11개, 그중 성별만 raw에서 가져오기), 연속 outcome(Q91_ISI_4), 이진 outcome(dissatisfaction, poor_sleeper) (전체 6개)
+
 
 
 
 # 번외 1 : 정제 끝난 데이터로 임시 outcome test
 def primal_var_check(args, RESULTS_DIR, RANDOM_SEED) :
 
-    # 독립변수(x값)
+    # 독립변수(x값, 근데 이제 전체 파일이라 y값도 있는)
     temp_train_df = pd.read_csv(args.train_data_dir)
     temp_test_df = pd.read_csv(args.test_data_dir)
     temp_train_df_raw = pd.read_csv(args.train_data_raw_dir)
     temp_test_df_raw = pd.read_csv(args.test_data_raw_dir)
+
+    # 이진변수 구분용
+    with open(args.expert_checked_var_list_dir, "r", encoding="utf-8") as f:
+        expert_checked_vars = json.load(f)
+
+    with open(args.manual_binary_vars_dir, "r", encoding="utf-8") as f:
+        manual_binary_vars = json.load(f)
+
+    # 연속변수는 전문가 정제 변수에서 이진변수를 뺀 변수들로 구성
+    # expert_checked_vars 요소 중 manual_binary_vars에 없는 것만 추출
+    continuous_vars = [v for v in expert_checked_vars if v not in manual_binary_vars]
 
 
     # KMO 및 전문가 지식으로 정제된 변수들 전체가 대상임, 여기선 이진 변수도 표준화되어 있으므로 이걸 다시 결합해야 함
 
     # 1. 독립변수(X) 구성: 연속형 변수는 표준화 데이터에서, 이진 변수는 원본 데이터에서 추출
 
-    with open(args.continuous_vars_list, "r", encoding="utf-8") as f: # 연속, 이진 목록 불러오기
-        conti_vars_list = json.load(f)
+    # 이건 유기 : 자동화 말고 수작업으로 해야 함
+    # with open(args.continuous_vars_list, "r", encoding="utf-8") as f: # 연속, 이진 목록 불러오기
+    #     conti_vars_list = json.load(f)
 
-    with open(args.categorical_vars_list, "r", encoding="utf-8") as f:
-        binary_vars_list = json.load(f)
+    # with open(args.categorical_vars_list, "r", encoding="utf-8") as f:
+    #     binary_vars_list = json.load(f)
 
-    available_conti = [col for col in conti_vars_list if col in temp_train_df.columns]      # 연속/이진 변수리스트는 정제 전에 뽑은거라 데이터에 없을 수도 있어서 데이터에 존재하는 변수인 경우만 필터링
-    available_binary = [col for col in binary_vars_list if col in temp_train_df.columns]    # train, test 모두 단일 데이터셋에서 분할하고 추가 처리가 없어서 변수 리스트는 한번만 생성해도 됨
+    available_conti = [col for col in continuous_vars if col in temp_train_df.columns]      # 연속/이진 변수리스트는 정제 전에 뽑은거라 데이터에 없을 수도 있어서 데이터에 존재하는 변수인 경우만 필터링
+    available_binary = [col for col in manual_binary_vars if col in temp_train_df.columns]    # train, test 모두 단일 데이터셋에서 분할하고 추가 처리가 없어서 변수 리스트는 한번만 생성해도 됨
 
-    print(available_binary)
+    # print(available_conti)
+    # print(available_binary)
 
-
+    # sys.exit(0)
 
     X_train = pd.concat([
         temp_train_df[available_conti], 
@@ -760,19 +719,24 @@ def primal_var_check(args, RESULTS_DIR, RANDOM_SEED) :
     print(f"Train set shape: {X_train.shape}")
     print(f"Test set shape: {X_test.shape}")
     print(X_train.head())
+    print(X_test.head())
 
-    sys.exit(0)
+    
 
-
-
-    # 종속변수(y값) - 연속
-
-    # 종속변수(y값) - 이진
+    # 데이터셋 저장 : 여긴 임시라 필요없을듯?
 
 
+    # 라벨 데이터셋 생성
+    Y_train = temp_train_df[[args.regression_var]]
+    Y_test = temp_test_df[[args.regression_var]]
 
-    # # 작업 1 : linear regression
-    # visual_primal_var_check_linear(df_EFA, df_CFA, RESULTS_DIR)
+    # 기초적인 linear regression 수행
+    temp_linear_regression(args, X_train, X_test, Y_train, Y_test, RESULTS_DIR, RANDOM_SEED)
 
-    # # 작업 2 : logistic regression
-    # visual_primal_var_check_logistic(df_EFA, df_CFA, RESULTS_DIR)
+
+
+
+
+# factor score을 이용해 특정 outcome을 대상으로 regression 수행
+def regression_test(args, RESULTS_DIR, RANDOM_SEEDrgs) :
+    pass

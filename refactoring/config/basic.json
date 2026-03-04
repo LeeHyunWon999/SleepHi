@@ -1,6 +1,6 @@
 {
     "task_list" : [
-        6
+        7
     ],
 
     "RANDOM_SEED" : 42,
@@ -48,25 +48,37 @@
         "binary_outcomes" : ["insomnia", "EDS", "depression", "poor_sleeper"],
         "binary_train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
         "covariates" : [],
-        "test_data_2018_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
+        "test_data_2011_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2011_1st.xlsx",
         "regression_var" : "Q51_slp_sufficient",
         "scoring_weights_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results/outcome_scoring_weights.csv",
         "N_SPLITS" : 5
 
     },
     "task_6" : {
-        
+        "df_2011_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2011.csv",
+        "df_2011_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2011_raw.csv",
+        "df_2018_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2018.csv",
+        "df_2018_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2018_raw.csv",
+        "expert_desc_list_ver_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc_list_ver.json"
+
     },
     "task_7" : {
         "train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA.csv",
         "test_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA.csv",
         "train_data_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
         "test_data_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA_raw.csv",
+        "manual_binary_vars_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/manual_binary_vars.json",
         "expert_checked_var_list_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_checked_var_list.json",
-        "test_data_2018_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
+        "test_data_2011_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
         "binary_vars_list_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/binary_vars.json",
-        "regression_var_conti_list" : ["Q51_slp_sufficient"],
-        "regression_var_binary_list" : ["insomnia", "EDS", "depression", "poor_sleeper"],
+        "regression_var" : "PSQI_sum_WA",
+        "N_SPLITS" : 5
+    },
+    "task_8" : {
+        "train_set" : "",
+        "test_set" : "",
+        "regression_var_conti" : [],
+        "regression_var_binary" : [],
         "N_SPLITS" : 5
     }
 }
