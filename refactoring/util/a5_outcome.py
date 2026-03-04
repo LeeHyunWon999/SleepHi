@@ -906,8 +906,32 @@ def visual_task1_ols(args, ols: pd.DataFrame, RESULTS_DIR) :
     # -----------------------------
     # Plot 1) OLS standardized beta heatmap
     # -----------------------------
-    pivot_beta = ols.pivot(index="outcome", columns="predictor", values="coef_std_beta")
-    pivot_q    = ols.pivot(index="outcome", columns="predictor", values="p_adj")
+    pivot_beta = ols.pivot(index="outcome", columns="predictor", values="coef_std_beta").reindex(args.continuous_outcomes)
+    pivot_q    = ols.pivot(index="outcome", columns="predictor", values="p_adj").reindex_like(pivot_beta)
+
+
+    # 값 변화 관련 임시
+    # pivot_beta = ols.pivot(index="outcome", columns="predictor", values="coef_std_beta")
+    # pivot_q    = ols.pivot(index="outcome", columns="predictor", values="p_adj")
+
+    # # reindex 전 원본
+    # pb0 = ols.pivot(index="outcome", columns="predictor", values="coef_std_beta")
+
+    # # reindex 후
+    # pb1 = pb0.reindex(args.continuous_outcomes)
+
+    # # 값이 바뀌었는지(라벨 기준) 확인: 겹치는 부분만 비교
+    # common_idx = pb0.index.intersection(pb1.index)
+    # common_col = pb0.columns.intersection(pb1.columns)
+
+    # diff = (pb0.loc[common_idx, common_col] - pb1.loc[common_idx, common_col]).abs().max().max()
+    # print(diff)
+
+    # import sys
+    # sys.exit(0)
+
+
+
 
     fig = plt.figure(figsize=(9, 3.5))
     ax = fig.add_subplot(111)
@@ -923,7 +947,7 @@ def visual_task1_ols(args, ols: pd.DataFrame, RESULTS_DIR) :
             q = pivot_q.values[i, j]
             if np.isfinite(b):
                 star = "*" if (np.isfinite(q) and q < 0.05) else ""
-                ax.text(j, i, f"{b:.2f}{star}", ha="center", va="center", fontsize=9, color="white" if b < -0.2 else "black")
+                ax.text(j, i, f"{b:.2f}{star}", ha="center", va="center", fontsize=9, color="white" if b < -0.1 else "black")
 
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     ax.set_title("OLS: standardized beta (FDR<0.05 marked with *)")

@@ -53,6 +53,13 @@ def preprocess(args, RANDOM_SEED, DATA_DIR, RESULTS_DIR) :
     categorical_vars = [c for c in categorical_vars if c in df.columns]
     continuous_vars = [c for c in continuous_vars if c in df.columns]
 
+    # task6에 쓰기 위해 범주/연속 변수 리스트 저장
+    with open(os.path.join(DATA_DIR, "categorical_vars.json"), "w", encoding="utf-8") as f:
+        json.dump(categorical_vars, f, ensure_ascii=False, indent=2)
+    with open(os.path.join(DATA_DIR, "continuous_vars.json"), "w", encoding="utf-8") as f:
+        json.dump(continuous_vars, f, ensure_ascii=False, indent=2)
+
+
     print("범주형 변수 개수:", len(categorical_vars))
     print("연속형 변수 개수:", len(continuous_vars))
 
@@ -107,17 +114,16 @@ def preprocess(args, RANDOM_SEED, DATA_DIR, RESULTS_DIR) :
 
 
     # (추가) 표준화/시간변환 전에 분포 요약 + plot 2장 저장
-    cont_stats, cat_props = summarize_and_plot_continuous_and_categorical(
-        df=df,
-        categorical_vars=categorical_vars,
-        continuous_vars=continuous_vars,
-        RESULTS_DIR=RESULTS_DIR,          # 혹은 RESULTS_DIR
-        top_k_categories=5
-    )
-    print(cont_stats.head(10))
-    print(cat_props.head(10))
-
-
+    if getattr(args, "df_summarize_opt", False): # config에서 켜는 옵션
+        cont_stats, cat_props = summarize_and_plot_continuous_and_categorical(
+            df=df,
+            categorical_vars=categorical_vars,
+            continuous_vars=continuous_vars,
+            RESULTS_DIR=RESULTS_DIR,          # 혹은 RESULTS_DIR
+            top_k_categories=5
+        )
+        print(cont_stats.head(10))
+        print(cat_props.head(10))
 
 
 
@@ -142,14 +148,80 @@ def preprocess(args, RANDOM_SEED, DATA_DIR, RESULTS_DIR) :
 
 
 
-    # # (2018 데이터 분리용) 이대로 저장
-    # df.to_csv(os.path.join(DATA_DIR, "df_2018.csv"), index=False, encoding="utf-8-sig")
-    # df_raw.to_csv(os.path.join(DATA_DIR, "df_2018_raw.csv"), index=False, encoding="utf-8-sig")
+    # (2018 데이터 분리용) 이대로 저장
+    if getattr(args, "data_2018_make_option", False): # 데이터 분리 전용 config 파일에만 있는 옵션
+        df.to_csv(os.path.join(DATA_DIR, "df_2018.csv"), index=False, encoding="utf-8-sig")
+        df_raw.to_csv(os.path.join(DATA_DIR, "df_2018_raw.csv"), index=False, encoding="utf-8-sig")
+        print("2018 데이터 저장 완료. 작업 종료.")
+        sys.exit(0)
 
-    # import sys
+
+    # # (추가) 2011년 데이터에서 Q51과 Q91의 다름을 확인하기 위한 간단한 검정 테스트 (df_raw로 보는게 나을 듯) (ordinal 값의 비교는 wilcoxon signed-rank test로 진행)
+    # if "Q51_slp_sufficient" in df_raw.columns and "Q91_ISI_4" in df_raw.columns:
+
+    #     paired = df_raw[["Q51_slp_sufficient", "Q91_ISI_4"]].dropna()
+
+    #     wilcoxon_test = wilcoxon(paired["Q51_slp_sufficient"], paired["Q91_ISI_4"], alternative="two-sided")
+    #     print("\n[2011 데이터 Q51 vs Q91 Wilcoxon signed-rank test]")
+    #     print(f"  V-statistic: {wilcoxon_test.statistic}, p-value: {wilcoxon_test.pvalue}")
+
+    #     # median 값을 찍어야 V-stastic이 의미가 있다 함
+    #     print((paired["Q51_slp_sufficient"] - paired["Q91_ISI_4"]).median())
+
+    #     # 이번엔 경향 차이 확인 위한 spearman
+    #     spearman_test = spearmanr(paired["Q51_slp_sufficient"], paired["Q91_ISI_4"])
+    #     print("\n[2011 데이터 Q51 vs Q91 Spearman correlation]")
+    #     print(f"  rho: {spearman_test.correlation}, p-value: {spearman_test.pvalue}")   
+
+
+    #     # 이번엔 기울기 보기용 
+    #     X = paired["Q51_slp_sufficient"]
+    #     Y = paired["Q91_ISI_4"]
+
+    #     X = sm.add_constant(X)
+    #     model = sm.OLS(Y, X).fit()
+
+    #     print(model.summary())
+
+    #     # boxplot으로 분포 시각화
+
+    #     plt.figure(figsize=(6,5))
+
+    #     plt.boxplot(
+    #         [paired["Q51_slp_sufficient"], paired["Q91_ISI_4"]],
+    #         labels=["Q51_slp_sufficient", "Q91_ISI_4"]
+    #     )
+
+    #     plt.ylabel("Score")
+    #     plt.title("Distribution Comparison: Q51 vs Q91")
+    #     # 저장
+    #     plt.savefig(os.path.join(RESULTS_DIR, "temp_Q51_vs_Q91_boxplot.png"))
+
+
+    #     # 추세선 들어간 contingency heatmap
+    #     table = pd.crosstab(
+    #         paired["Q51_slp_sufficient"],
+    #         paired["Q91_ISI_4"]
+    #     )
+    #     table = table.sort_index(ascending=False)
+    #     plt.figure(figsize=(6,5))
+    #     sns.heatmap(
+    #         table,
+    #         annot=True,
+    #         fmt="d",
+    #         cmap="Blues"
+    #     )
+
+    #     plt.xlabel("Q91_ISI_4")
+    #     plt.ylabel("Q51_slp_sufficient")
+    #     plt.title("Contingency Heatmap")
+
+    #     # 저장
+    #     plt.savefig(os.path.join(RESULTS_DIR, "temp_Q51_vs_Q91_contingency_heatmap.png"))
+
+    # else : 
+    #     print("검정 대상 변수 없음")
     # sys.exit(0)
-
-
 
 
 
@@ -347,13 +419,13 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     # --------------------factor score과 outcome 변수를 한 df에 집어넣고 관리하기-----------------------------------
     # -> 단, binary outcome은 정규화로 0/1 값을 망치면 안되므로 raw 값으로 덮어쓰기
     # -> 다른 변수들이 군더더기로 붙어있다. 어차피 함수 안쪽에서 정제되긴 하지만, 그래도 겉에서 continuous outcome만 발라내도록 하자.
-    # -> 겸사겸사 로직 변경 : 괜히 df_CFA 다 집어넣지 말고, df_fs에서 연속 outcome만 추출하고, 이산 outcome 및 factor score과 합쳐서 진행?
+    # -> 겸사겸사 로직 변경 : 괜히 df_CFA 다 집어넣지 말고, df_fs에서 연속 outcome만 추출하고, 이진 outcome 및 factor score과 합쳐서 진행?
 
 
     df_fs_continuous = df_CFA[continuous_outcomes].copy()  # 연속형 outcome은 일단 z-score 표준화 된 데이터에서 추출
-    df_fs_binary = df_CFA_raw[binary_outcomes].copy()  # 이산형 outcome은 raw로 추출
+    df_fs_binary = df_CFA_raw[binary_outcomes].copy()  # 이진형 outcome은 raw로 추출
 
-    df_fs = pd.concat([df_fs_continuous, df_fs_binary, factor_scores_df], axis=1, join="inner")  # factor score과 outcome 합치기 (연속형은 표준화된 값, 이산형은 raw 값 유지)
+    df_fs = pd.concat([df_fs_continuous, df_fs_binary, factor_scores_df], axis=1, join="inner")  # factor score과 outcome 합치기 (연속형은 표준화된 값, 이진형은 raw 값 유지)
     print("각 df 크기 :", df_fs_continuous.shape, df_fs_binary.shape, factor_scores_df.shape)
     print("inner join 후 df_fs 크기:", df_fs.shape)
 
@@ -405,7 +477,7 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     )
     ols_results.to_csv(os.path.join(RESULTS_DIR, "outcome_task1_ols_results.csv"), index=False)
 
-    # ---- 이산 outcome 대상 t-test (표본수 이슈가 있을 수 있음) ----
+    # ---- 이진 outcome 대상 t-test (표본수 이슈가 있을 수 있음) ----
     ttest_results = run_ttests_binary_outcomes_on_factors(
         df_fs,
         binary_outcome_cols=binary_outcomes,
@@ -415,7 +487,7 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     )
     ttest_results.to_csv(os.path.join(RESULTS_DIR, "outcome_task1_ttest_results.csv"), index=False)
 
-    # ---- 이산 outcome 대상 MHU(Mann–Whitney U tests) ----
+    # ---- 이진 outcome 대상 MHU(Mann–Whitney U tests) ----
     mwu_results = run_mannwhitney_binary_outcomes_on_factors(
         df=df_fs,
         binary_outcome_cols=binary_outcomes,
@@ -478,6 +550,9 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
 
     # pearson, scatter, boxplot
     visual_task2_pearson_scatter_box(args, df_fs, RESULTS_DIR)
+
+
+
 
 
 
@@ -627,3 +702,77 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     summary.to_csv(os.path.join(RESULTS_DIR, "cv_summary_mean_std.csv"))                  # index: metric, columns: mean/std
     pd.Series(test_metrics).to_csv(os.path.join(RESULTS_DIR, "cv_test_metrics.csv"), header=False)
     coef_df.to_csv(os.path.join(RESULTS_DIR, "cv_final_model_coefs.csv"), index=False)
+
+
+# 번외 0 : 2011, 2018 데이터셋 outcome test용으로 재작업하기
+def data_rework(args, RESULTS_DIR, RANDOM_SEED) :
+    pass
+
+
+
+# 번외 1 : 정제 끝난 데이터로 임시 outcome test
+def primal_var_check(args, RESULTS_DIR, RANDOM_SEED) :
+
+    # 독립변수(x값)
+    temp_train_df = pd.read_csv(args.train_data_dir)
+    temp_test_df = pd.read_csv(args.test_data_dir)
+    temp_train_df_raw = pd.read_csv(args.train_data_raw_dir)
+    temp_test_df_raw = pd.read_csv(args.test_data_raw_dir)
+
+
+    # KMO 및 전문가 지식으로 정제된 변수들 전체가 대상임, 여기선 이진 변수도 표준화되어 있으므로 이걸 다시 결합해야 함
+
+    # 1. 독립변수(X) 구성: 연속형 변수는 표준화 데이터에서, 이진 변수는 원본 데이터에서 추출
+
+    with open(args.continuous_vars_list, "r", encoding="utf-8") as f: # 연속, 이진 목록 불러오기
+        conti_vars_list = json.load(f)
+
+    with open(args.categorical_vars_list, "r", encoding="utf-8") as f:
+        binary_vars_list = json.load(f)
+
+    available_conti = [col for col in conti_vars_list if col in temp_train_df.columns]      # 연속/이진 변수리스트는 정제 전에 뽑은거라 데이터에 없을 수도 있어서 데이터에 존재하는 변수인 경우만 필터링
+    available_binary = [col for col in binary_vars_list if col in temp_train_df.columns]    # train, test 모두 단일 데이터셋에서 분할하고 추가 처리가 없어서 변수 리스트는 한번만 생성해도 됨
+
+    print(available_binary)
+
+
+
+    X_train = pd.concat([
+        temp_train_df[available_conti], 
+        temp_train_df_raw[available_binary]
+    ], axis=1)
+    
+    X_test = pd.concat([
+        temp_test_df[available_conti], 
+        temp_test_df_raw[available_binary]
+    ], axis=1)
+
+    # 갯수 맞나 확인 (2011 데이터 기준 train 1182, test 1181)
+    x_temp = pd.concat([temp_train_df[available_conti], temp_train_df_raw[available_binary]], axis=1, join="inner")
+    print(x_temp.shape)
+
+    # 2. 인덱스 정렬 확인 (선택 사항)
+    # 두 데이터프레임의 행 순서가 동일하다는 전제하에 결합하지만, 안전을 위해 인덱스를 재설정할 수 있습니다.
+    # X_train = X_train.reset_index(drop=True)
+    # X_test = X_test.reset_index(drop=True)
+
+    # 3. 결합 결과 확인
+    print(f"Train set shape: {X_train.shape}")
+    print(f"Test set shape: {X_test.shape}")
+    print(X_train.head())
+
+    sys.exit(0)
+
+
+
+    # 종속변수(y값) - 연속
+
+    # 종속변수(y값) - 이진
+
+
+
+    # # 작업 1 : linear regression
+    # visual_primal_var_check_linear(df_EFA, df_CFA, RESULTS_DIR)
+
+    # # 작업 2 : logistic regression
+    # visual_primal_var_check_logistic(df_EFA, df_CFA, RESULTS_DIR)

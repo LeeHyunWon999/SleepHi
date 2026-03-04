@@ -1,6 +1,6 @@
 {
     "task_list" : [
-        0,1,2,3,4,5
+        6
     ],
 
     "RANDOM_SEED" : 42,
@@ -12,6 +12,7 @@
     "task_0" : {
     },
     "task_1" : {
+        "df_summarize_opt" : false,
         "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_KSHS_2nd_data_250811.xlsx",
         "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/Sleep Hi_Variable_250811.xlsx",
         "var_threshold" : 1e-5
@@ -48,9 +49,24 @@
         "binary_train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
         "covariates" : [],
         "test_data_2018_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
-        "regression_var" : "PSQI_sum_WA",
+        "regression_var" : "Q51_slp_sufficient",
         "scoring_weights_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/results/outcome_scoring_weights.csv",
         "N_SPLITS" : 5
 
+    },
+    "task_6" : {
+        
+    },
+    "task_7" : {
+        "train_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA.csv",
+        "test_data_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA.csv",
+        "train_data_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
+        "test_data_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA_raw.csv",
+        "expert_checked_var_list_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_checked_var_list.json",
+        "test_data_2018_dir" : "data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
+        "binary_vars_list_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/binary_vars.json",
+        "regression_var_conti_list" : ["Q51_slp_sufficient"],
+        "regression_var_binary_list" : ["insomnia", "EDS", "depression", "poor_sleeper"],
+        "N_SPLITS" : 5
     }
 }

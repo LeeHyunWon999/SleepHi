@@ -1,0 +1,23 @@
+[
+  "SW",
+  "sex",
+  "age_group",
+  "D4_edu",
+  "D5_income",
+  "Q56_alc",
+  "Q57_smok",
+  "Q58_exercise",
+  "Q88_snor",
+  "Q89_apnea",
+  "Q82_PSQI_med",
+  "insomnia",
+  "poor_sleeper",
+  "EDS",
+  "fatigue",
+  "anxiety",
+  "depression",
+  "poor_cog",
+  "D1_1_HT",
+  "D1_2_DM",
+  "D1_3_HLP"
+]

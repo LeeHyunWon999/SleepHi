@@ -12,6 +12,7 @@
     "task_0" : {
     },
     "task_1" : {
+        "data_2018_make_option" : true,
         "data_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_data_2018_2nd.xlsx",
         "meta_file" : "/home/hschoi/data/leehyunwon/SleepHi/ver2/sleephi_ver2_variable_2018_2nd.xlsx",
         "var_threshold" : 1e-5

@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import argparse
 import pandas as pd
@@ -22,6 +23,7 @@ from pandas.api.types import (
 from random import random
 
 from scipy.special import logsumexp
+from scipy.stats import wilcoxon, spearmanr
 from stepmix.stepmix import StepMix
 from sklearn.model_selection import train_test_split
 from itertools import zip_longest
@@ -67,5 +69,6 @@ from scipy.stats import pearsonr
 
 
 from sklearn.model_selection import KFold
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
