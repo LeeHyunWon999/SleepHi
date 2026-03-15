@@ -1,6 +1,6 @@
 {
     "task_list" : [
-        7
+        8
     ],
 
     "RANDOM_SEED" : 42,
@@ -55,10 +55,10 @@
 
     },
     "task_6" : {
-        "df_2011_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2011.csv",
-        "df_2011_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2011_raw.csv",
-        "df_2018_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2018.csv",
-        "df_2018_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_2018_raw.csv",
+        "df_EFA_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA.csv",
+        "df_EFA_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_EFA_raw.csv",
+        "df_CFA_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA.csv",
+        "df_CFA_raw_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/df_CFA_raw.csv",
         "expert_desc_list_ver_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc_list_ver.json"
 
     },
@@ -75,10 +75,15 @@
         "N_SPLITS" : 5
     },
     "task_8" : {
-        "train_set" : "",
-        "test_set" : "",
-        "regression_var_conti" : [],
-        "regression_var_binary" : [],
+        "refined_df_EFA_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/refined_df_EFA.csv",
+        "refined_df_CFA_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/refined_df_CFA.csv",
+        "refined_outcome_EFA_conti_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/refined_outcome_EFA_conti.csv",
+        "refined_outcome_EFA_binary_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/refined_outcome_EFA_binary.csv",
+        "refined_outcome_CFA_conti_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/refined_outcome_CFA_conti.csv",
+        "refined_outcome_CFA_binary_dir" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/refined_outcome_CFA_binary.csv",
+        "regression_var_conti" : ["Q91_ISI_4","PSQI_sum_WA"],
+        "regression_var_binary" : ["dissatisfaction","poor_sleeper"],
+        "expert_desc" : "/home/hschoi/leehyunwon/SleepHi/refactoring/data/expert_desc.txt",
         "N_SPLITS" : 5
     }
 }

@@ -68,7 +68,7 @@ def main() :
             a00_task_executor.outcome_check(args.task_5, RESULTS_DIR, RANDOM_SEED)
         elif task == 6 : 
             # 번외 0 : 2011, 2018 데이터셋 outcome 변수만 추리도록 작업하기
-            a00_task_executor.data_rework(args.task_6, RESULTS_DIR, RANDOM_SEED)
+            a00_task_executor.data_rework(args.task_6, RESULTS_DIR, RANDOM_SEED, DATA_DIR)
         elif task == 7 : 
             # 번외 1 : 정제 끝난 데이터로 임시 outcome test
             a00_task_executor.primal_var_check(args.task_7, RESULTS_DIR, RANDOM_SEED)

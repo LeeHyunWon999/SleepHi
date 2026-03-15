@@ -568,17 +568,15 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
 
 
 
-
-# 번외 0 : 2011, 2018 데이터셋 outcome 변수만 추리도록 작업하기
+# 번외 0_1 : EFA, CFA 데이터셋 outcome 변수만 추리도록 작업하기 -> 2018 데이터에서 EFA, CFA 다시 나누기
 # TODO : PSQI 변수가 2018 데이터셋에서 발견되지 않았음, 일단 그 변수 빼고 나머지 3개 변수(Q91_ISI_4 - dissatisfation, poor_sleeper)에 대해서만 작업할 것
 # 정확히는 저 변수들은 종속변수(y)임,
-def data_rework(args, RESULTS_DIR, RANDOM_SEED) :
-    # 2011, 2018 데이터의 정규화, raw 총 4개 불러오기
-    df_2011 = pd.read_csv(args.df_2011_dir)
-    df_2011_raw = pd.read_csv(args.df_2011_raw_dir)
-    df_2018 = pd.read_csv(args.df_2018_dir)
-    df_2018_raw = pd.read_csv(args.df_2018_raw_dir)
+def data_rework(args, RESULTSDIR, RANDOM_SEED, DATA_DIR) :
 
+    df_EFA = pd.read_csv(args.df_EFA_dir)
+    df_EFA_raw = pd.read_csv(args.df_EFA_raw_dir)
+    df_CFA = pd.read_csv(args.df_CFA_dir)
+    df_CFA_raw = pd.read_csv(args.df_CFA_raw_dir)
 
 
     # 2011, 2018 데이터 각각 통합 : 성별만 raw에서 가져오고 나머지 10개 변수는 정규화 한 쪽으로 진행
@@ -594,22 +592,27 @@ def data_rework(args, RESULTS_DIR, RANDOM_SEED) :
 
     # 2. 데이터프레임 결합
     # temp_train_df에서는 '성별'을 제외한 나머지 변수를, 
-    # temp_train_df_raw에서는 '성별' 변수 하나만 가져와 옆으로(axis=1) 붙입니다.
-#    refined_df_2011 =  pd.concat([
-#        df_2011[vars_except_gender], 
-#        df_2011_raw[["sex"]]
-#    ], axis=1)
+    # temp_train_df_raw에서는 '성별' 변수 하나만 가져와 옆으로(axis=1) 붙이기
 
-    refined_df_2018 = pd.concat([
-        df_2018[vars_except_gender], 
-        df_2018_raw[["sex"]]
+    refined_df_EFA = pd.concat([
+        df_EFA[vars_except_gender], 
+        df_EFA_raw[["sex"]]
     ], axis=1)
 
+    refined_df_CFA = pd.concat([
+        df_CFA[vars_except_gender], 
+        df_CFA_raw[["sex"]]
+    ], axis=1)
+
+
+
+
+
     # 3. 결과 확인
-#    print(refined_df_2011.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
-#    print(refined_df_2011["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
-    print(refined_df_2018.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
-    print(refined_df_2018["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
+    print(refined_df_EFA.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
+    print(refined_df_EFA["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
+    print(refined_df_CFA.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
+    print(refined_df_CFA["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
 
 
 
@@ -617,9 +620,8 @@ def data_rework(args, RESULTS_DIR, RANDOM_SEED) :
     # 4. 연속 & 이진 outcome 생성 (이것도 2개 년도 각각 필요)
 
     # 연속 : 표준화된 걸로 가져오기
-#    refined_outcome_2011_conti = df_2011[["Q33_ISI_4", "PSQI_sum_WA"]]
-    refined_outcome_2018_conti = df_2018[["Q91_ISI_4"]] # 나중에 2018 데이터에 PSQI 총점 생기면 여기에 추가 : 어차피 이 메소드는 데이터만들기 1회용이고 안에서 직접 작업하는 부분이 있으니 하드코딩 무방
-
+    refined_outcome_EFA_conti = df_EFA[["Q91_ISI_4", "PSQI_sum_WA"]] # 나중에 2018 데이터에 PSQI 총점 생기면 여기에 추가 : 어차피 이 메소드는 데이터만들기 1회용이고 안에서 직접 작업하는 부분이 있으니 하드코딩 무방
+    refined_outcome_CFA_conti = df_CFA[["Q91_ISI_4", "PSQI_sum_WA"]] # 나중에 2018 데이터에 PSQI 총점 생기면 여기에 추가 : 어차피 이 메소드는 데이터만들기 1회용이고 안에서 직접 작업하는 부분이 있으니 하드코딩 무방
 
 
     # 이진 : dissatisfaction은 Q91_ISI_4(연속값)에서 직접 작업하기, 이후 poor_sleeper과 합치면 끝
@@ -627,32 +629,164 @@ def data_rework(args, RESULTS_DIR, RANDOM_SEED) :
     # 1. 조건에 따라 이진 변수 생성
     # 1, 2점은 0(정상), 3~5점은 1(수면불만족)로 할당
     # np.where(조건, 참일 때 값, 거짓일 때 값)
-#    isi_binary_2011 = np.where(df_2011_raw["Q33_ISI_4"] <= 2, 0, 1)
-    isi_binary_2018 = np.where(df_2018_raw["Q91_ISI_4"] <= 2, 0, 1)
+
+    isi_binary_EFA = np.where(df_EFA_raw["Q91_ISI_4"] <= 2, 0, 1)
+    isi_binary_CFA = np.where(df_CFA_raw["Q91_ISI_4"] <= 2, 0, 1)
 
     # 2. 새로운 데이터프레임 구성 (총 2열)
     # 새 변수명을 'isi_status' 등으로 지정하여 poor_sleeper와 함께 추출
-#    refined_outcome_2011_binary = pd.DataFrame({
-#        "dissatisfaction": isi_binary_2011,
-#        "poor_sleeper": df_2011_raw["poor_sleeper"]
-#    }, index=df_2011_raw.index) # 기존 인덱스 유지
 
-    refined_outcome_2018_binary = pd.DataFrame({
-        "dissatisfaction": isi_binary_2018,
-        "poor_sleeper": df_2018_raw["poor_sleeper"]
-    }, index=df_2018_raw.index) # 기존 인덱스 유지
+    refined_outcome_EFA_binary = pd.DataFrame({
+        "dissatisfaction": isi_binary_EFA,
+        "poor_sleeper": df_EFA_raw["poor_sleeper"]
+    }, index=df_EFA_raw.index) # 기존 인덱스 유지
+
+    refined_outcome_CFA_binary = pd.DataFrame({
+        "dissatisfaction": isi_binary_CFA,
+        "poor_sleeper": df_CFA_raw["poor_sleeper"]
+    }, index=df_CFA_raw.index) # 기존 인덱스 유지
+
+
+
+    # 번외 : 성별은 현재 1, 2로 되어 있음, 이것도 남성 0, 여성 1로 변경하기
+    print(refined_df_EFA['sex'].value_counts())
+    refined_df_EFA['sex'] = refined_df_EFA['sex'].replace({1:0, 2:1})
+    print(refined_df_EFA['sex'].value_counts()) # 혹시 모르니 변경 전후 남녀 수 출력
+
+    print(refined_df_CFA['sex'].value_counts())
+    refined_df_CFA['sex'] = refined_df_CFA['sex'].replace({1:0, 2:1})
+    print(refined_df_CFA['sex'].value_counts()) # 혹시 모르니 변경 전후 남녀 수 출력
+
+    # sys.exit(0)
+
 
     # 3. 결과 확인
-#    print(refined_outcome_2011_binary.head())
-#    print(refined_outcome_2011_binary.value_counts()) # 각 조합별 빈도 확인
-    print(refined_outcome_2018_binary.head())
-    print(refined_outcome_2018_binary.value_counts()) # 각 조합별 빈도 확인
+    print(refined_outcome_EFA_binary.head())
+    print(refined_outcome_EFA_binary.value_counts()) # 각 조합별 빈도 확인
+    print(refined_outcome_EFA_conti.head())
+    print(refined_df_EFA.head())
 
-    print("임시 : 조기종료")
-    sys.exit(0)
+    print(refined_outcome_CFA_binary.head())
+    print(refined_outcome_CFA_binary.value_counts()) # 각 조합별 빈도 확인
+    print(refined_outcome_CFA_conti.head())
+    print(refined_df_CFA.head())
 
+
+
+
+
+    
     # 저장 대상 : 2011, 2018 둘 다 factor score 만들기용 데이터(11개, 그중 성별만 raw에서 가져오기), 연속 outcome(Q91_ISI_4), 이진 outcome(dissatisfaction, poor_sleeper) (전체 6개)
+    refined_df_EFA.to_csv(os.path.join(DATA_DIR, "refined_df_EFA.csv"), index=False)
+    refined_outcome_EFA_conti.to_csv(os.path.join(DATA_DIR, "refined_outcome_EFA_conti.csv"), index=False)
+    refined_outcome_EFA_binary.to_csv(os.path.join(DATA_DIR, "refined_outcome_EFA_binary.csv"), index=False)
 
+    refined_df_CFA.to_csv(os.path.join(DATA_DIR, "refined_df_CFA.csv"), index=False)
+    refined_outcome_CFA_conti.to_csv(os.path.join(DATA_DIR, "refined_outcome_CFA_conti.csv"), index=False)
+    refined_outcome_CFA_binary.to_csv(os.path.join(DATA_DIR, "refined_outcome_CFA_binary.csv"), index=False)
+
+
+
+
+
+
+
+
+
+
+
+# # 번외 0 : 2011, 2018 데이터셋 outcome 변수만 추리도록 작업하기
+# # TODO : PSQI 변수가 2018 데이터셋에서 발견되지 않았음, 일단 그 변수 빼고 나머지 3개 변수(Q91_ISI_4 - dissatisfation, poor_sleeper)에 대해서만 작업할 것
+# # 정확히는 저 변수들은 종속변수(y)임,
+# def data_rework(args, RESULTSDIR, RANDOM_SEED, DATA_DIR) :
+#     # 2011, 2018 데이터의 정규화, raw 총 4개 불러오기
+#     df_2011 = pd.read_csv(args.df_2011_dir)
+#     df_2011_raw = pd.read_csv(args.df_2011_raw_dir)
+#     df_2018 = pd.read_csv(args.df_2018_dir)
+#     df_2018_raw = pd.read_csv(args.df_2018_raw_dir)
+
+
+
+#     # 2011, 2018 데이터 각각 통합 : 성별만 raw에서 가져오고 나머지 10개 변수는 정규화 한 쪽으로 진행
+    
+#     # 리스트 열기
+#     with open(args.expert_desc_list_ver_dir, "r", encoding="utf-8") as f:
+#         factor_vars_list = json.load(f)
+
+
+
+#     # 1. vars_list에서 '성별'을 제외한 변수들만 필터링
+#     vars_except_gender = [col for col in factor_vars_list if col != "sex"]
+
+#     # 2. 데이터프레임 결합
+#     # temp_train_df에서는 '성별'을 제외한 나머지 변수를, 
+#     # temp_train_df_raw에서는 '성별' 변수 하나만 가져와 옆으로(axis=1) 붙이기
+# #    refined_df_2011 =  pd.concat([
+# #        df_2011[vars_except_gender], 
+# #        df_2011_raw[["sex"]]
+# #    ], axis=1)
+
+#     refined_df_2018 = pd.concat([
+#         df_2018[vars_except_gender], 
+#         df_2018_raw[["sex"]]
+#     ], axis=1)
+
+#     # 3. 결과 확인
+# #    print(refined_df_2011.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
+# #    print(refined_df_2011["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
+#     print(refined_df_2018.columns) # '성별'이 리스트의 맨 뒤나 지정한 위치에 포함되었는지 확인
+#     print(refined_df_2018["sex"].tail()) # 값이 1, 2(또는 0, 1)로 잘 나오는지 확인
+
+
+
+
+#     # 4. 연속 & 이진 outcome 생성 (이것도 2개 년도 각각 필요)
+
+#     # 연속 : 표준화된 걸로 가져오기
+# #    refined_outcome_2011_conti = df_2011[["Q33_ISI_4", "PSQI_sum_WA"]]
+#     refined_outcome_2018_conti = df_2018[["Q91_ISI_4", "PSQI_sum_WA"]] # 나중에 2018 데이터에 PSQI 총점 생기면 여기에 추가 : 어차피 이 메소드는 데이터만들기 1회용이고 안에서 직접 작업하는 부분이 있으니 하드코딩 무방
+
+
+
+#     # 이진 : dissatisfaction은 Q91_ISI_4(연속값)에서 직접 작업하기, 이후 poor_sleeper과 합치면 끝
+
+#     # 1. 조건에 따라 이진 변수 생성
+#     # 1, 2점은 0(정상), 3~5점은 1(수면불만족)로 할당
+#     # np.where(조건, 참일 때 값, 거짓일 때 값)
+# #    isi_binary_2011 = np.where(df_2011_raw["Q33_ISI_4"] <= 2, 0, 1)
+#     isi_binary_2018 = np.where(df_2018_raw["Q91_ISI_4"] <= 2, 0, 1)
+
+#     # 2. 새로운 데이터프레임 구성 (총 2열)
+#     # 새 변수명을 'isi_status' 등으로 지정하여 poor_sleeper와 함께 추출
+# #    refined_outcome_2011_binary = pd.DataFrame({
+# #        "dissatisfaction": isi_binary_2011,
+# #        "poor_sleeper": df_2011_raw["poor_sleeper"]
+# #    }, index=df_2011_raw.index) # 기존 인덱스 유지
+
+#     refined_outcome_2018_binary = pd.DataFrame({
+#         "dissatisfaction": isi_binary_2018,
+#         "poor_sleeper": df_2018_raw["poor_sleeper"]
+#     }, index=df_2018_raw.index) # 기존 인덱스 유지
+
+#     # 번외 : 성별은 현재 1, 2로 되어 있음, 이것도 남성 0, 여성 1로 변경하기
+#     print(refined_df_2018['sex'].value_counts())
+#     refined_df_2018['sex'] = refined_df_2018['sex'].replace({1:0, 2:1})
+#     print(refined_df_2018['sex'].value_counts()) # 혹시 모르니 변경 전후 남녀 수 출력
+#     # sys.exit(0)
+
+#     # 3. 결과 확인
+# #    print(refined_outcome_2011_binary.head())
+# #    print(refined_outcome_2011_binary.value_counts()) # 각 조합별 빈도 확인
+#     print(refined_outcome_2018_binary.head())
+#     print(refined_outcome_2018_binary.value_counts()) # 각 조합별 빈도 확인
+#     print(refined_outcome_2018_conti.head())
+#     print(refined_df_2018.head())
+
+    
+#     # 저장 대상 : 2011, 2018 둘 다 factor score 만들기용 데이터(11개, 그중 성별만 raw에서 가져오기), 연속 outcome(Q91_ISI_4), 이진 outcome(dissatisfaction, poor_sleeper) (전체 6개)
+#     refined_df_2018.to_csv(os.path.join(DATA_DIR, "refined_df_2018.csv"), index=False)
+#     refined_outcome_2018_conti.to_csv(os.path.join(DATA_DIR, "refined_outcome_2018_conti.csv"), index=False)
+#     refined_outcome_2018_binary.to_csv(os.path.join(DATA_DIR, "refined_outcome_2018_binary.csv"), index=False)
 
 
 
@@ -711,7 +845,7 @@ def primal_var_check(args, RESULTS_DIR, RANDOM_SEED) :
     print(x_temp.shape)
 
     # 2. 인덱스 정렬 확인 (선택 사항)
-    # 두 데이터프레임의 행 순서가 동일하다는 전제하에 결합하지만, 안전을 위해 인덱스를 재설정할 수 있습니다.
+    # 두 데이터프레임의 행 순서가 동일하다는 전제하에 결합하지만, 안전을 위해 인덱스 재설정 가능
     # X_train = X_train.reset_index(drop=True)
     # X_test = X_test.reset_index(drop=True)
 
@@ -737,6 +871,133 @@ def primal_var_check(args, RESULTS_DIR, RANDOM_SEED) :
 
 
 
+
+# 아래 outcome 작업에서 factor score 데이터 뽑기용
+def make_factor_score_data(df, desc) : 
+
+    # ---- CFA 재수행 후 factor score 뽑기 ----
+    model, est, stats, factor_scores_df = fit_cfa_get_stats_and_scores(
+        df=df,
+        desc=desc,
+        observed_cols=None, # None으로 주면 변수 리스트 체크 넘어가고 desc에 적힌 변수 알아서 골라 씀
+        fit_options={"disp": True},
+        dropna_for_scores=True,
+        save_est_path="cfa_estimates.csv",
+        save_stats_path="cfa_fit_stats.csv",
+    )
+
+    # ---- factor score 만드는데 쓰인 weight matrix 추출 ----
+    scoring_weights_df = extract_scoring_weights(model)
+
+    # ---- 라벨링 통일 ----
+    factor_scores_axes, scoring_weights_axes = relabel_scores_and_weights_as_axes(
+        factor_scores_df=factor_scores_df,
+        scoring_weights_df=scoring_weights_df,
+        axis_prefix="Factor_"
+    )
+
+    # 이후 분석에서 factor_scores_df를 라벨 통일된 버전으로 사용
+    factor_scores_df = factor_scores_axes
+
+    return factor_scores_df
+
+
+
 # factor score을 이용해 특정 outcome을 대상으로 regression 수행
-def regression_test(args, RESULTS_DIR, RANDOM_SEEDrgs) :
-    pass
+def regression_test(args, RESULTS_DIR, RANDOM_SEED) :
+    # EFA(train & valid), CFA(test) 각각 요인구조 형성에 쓸 데이터, outcome 데이터(conti/binary) 가져오기
+    train_valid_data = pd.read_csv(args.refined_df_EFA_dir)
+    train_valid_outcome_conti = pd.read_csv(args.refined_outcome_EFA_conti_dir)
+    train_valid_outcome_binary = pd.read_csv(args.refined_outcome_EFA_binary_dir)
+
+    test_data = pd.read_csv(args.refined_df_CFA_dir)
+    test_outcome_conti = pd.read_csv(args.refined_outcome_CFA_conti_dir)
+    test_outcome_binary = pd.read_csv(args.refined_outcome_CFA_binary_dir)
+
+    # outcome의 column 명 리스트로 미리 가져오기
+    outcome_conti_list = args.regression_var_conti
+    outcome_binary_list = args.regression_var_binary
+
+    # 전문가 요인구조 가져오기
+    with open(args.expert_desc, "r", encoding="utf-8") as f:
+        desc = f.read()
+
+    # factor score 데이터셋 만들기 : EFA, CFA 각각 데이터에 대해 1번씩만 하고 돌려쓰면 된다.
+    train_valid_factor_score_data = make_factor_score_data(train_valid_data, desc)
+    print(train_valid_factor_score_data.head())
+    print(train_valid_factor_score_data.shape)
+
+    test_factor_score_data = make_factor_score_data(test_data, desc)
+    print(test_factor_score_data.head())
+    print(test_factor_score_data.shape)
+
+
+
+
+
+
+
+
+
+    # tree 기반 방법 수행 (어차피 둘 다 트리 기반 방법은 동일하다는듯)
+
+
+
+    ## regression tree + 앙상블 : 연속형 변수 대상
+
+    ## classification tree + 앙상블 : 범주형 변수 대상
+
+
+
+
+
+
+    ############################################################
+
+    # 일반 Decision Tree 및 xgboost로 regression, classification (tree 기반)
+    # 입력은 연속/범주 다 들어감, outcome 종류따라 달라짐
+
+    # 리니어리그레션, 로지스틱 리그레션
+
+    # 앙상블 횟수 등은 default로 진행
+
+
+
+
+
+    # --- 실제 실행 프로세스 ---
+
+    # 1. 객체 생성
+    analyst = MultiOutcomeAnalyst(randNum=RANDOM_SEED, n_splits=5)
+
+    # 2. 연속형 Outcome들에 대해 실행 (Linear, DT, XGB Regressors)
+    analyst.run_experiment(
+        train_valid_factor_score_data, test_factor_score_data,
+        train_valid_outcome_conti, test_outcome_conti, 
+        is_regression=True
+    )
+
+    # 3. 이산형 Outcome들에 대해 실행 (Logistic, DT, XGB Classifiers)
+    analyst.run_experiment(
+        train_valid_factor_score_data, test_factor_score_data,
+        train_valid_outcome_binary, test_outcome_binary, 
+        is_regression=False
+    )
+
+    # 4. 결과 출력 및 저장
+    report_df = analyst.get_final_report()
+
+    # 회귀 결과만 보기 (NaN인 분류 지표 컬럼 제거)
+    regression_report = report_df[report_df['Type'] == 'Regression'].dropna(axis=1, how='all')
+
+    # 분류 결과만 보기 (NaN인 회귀 지표 컬럼 제거)
+    classification_report = report_df[report_df['Type'] == 'Classification'].dropna(axis=1, how='all')
+
+    print(regression_report)
+    print(classification_report)
+
+    # 저장
+    regression_report.to_csv(os.path.join(RESULTS_DIR,"final_regression_report.csv"), index=False)
+    classification_report.to_csv(os.path.join(RESULTS_DIR,"final_classification_report.csv"), index=False)
+
+

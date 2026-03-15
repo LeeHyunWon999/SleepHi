@@ -72,3 +72,10 @@ from sklearn.model_selection import KFold
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import mean_squared_error, r2_score, accuracy_score
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+
+
+from sklearn.model_selection import cross_validate, KFold
+from sklearn.metrics import (mean_squared_error, r2_score, accuracy_score, 
+                             f1_score, roc_auc_score, make_scorer)
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from xgboost import XGBRegressor, XGBClassifier
