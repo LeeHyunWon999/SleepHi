@@ -965,6 +965,11 @@ def regression_test(args, RESULTS_DIR, RANDOM_SEED) :
 
 
 
+    random.seed(RANDOM_SEED) # 파이썬 자체 random 시드 고정
+    np.random.seed(RANDOM_SEED) # 넘파이 연산 시드 고정
+    os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED) # 해시 함수 결과 고정
+
+
     # --- 실제 실행 프로세스 ---
 
     # 1. 객체 생성

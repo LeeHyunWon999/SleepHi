@@ -20,7 +20,8 @@ from pandas.api.types import (
     is_object_dtype, is_numeric_dtype
 )
 
-from random import random
+import random
+
 
 from scipy.special import logsumexp
 from scipy.stats import wilcoxon, spearmanr

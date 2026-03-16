@@ -36,7 +36,7 @@ class MultiOutcomeAnalyst:
             for model, model_name in models:
                 # 1. Cross-Validation (5-fold)
                 scoring = {
-                    'mse': 'neg_mean_squared_error', 'rmse': 'neg_root_mean_squared_error', 'r2': 'r2'
+                    'mae': 'neg_mean_absolute_error', 'rmse': 'neg_root_mean_squared_error', 'r2': 'r2'
                 } if is_regression else {
                     'acc': 'accuracy', 'f1': 'f1_macro', 'auc': 'roc_auc'
                 }
@@ -53,8 +53,8 @@ class MultiOutcomeAnalyst:
                 # CV 결과 집계 (Mean & Std)
                 for score_key in scoring.keys():
                     vals = cv_results[f'test_{score_key}']
-                    # MSE와 RMSE는 scikit-learn 내부에서 '음수'로 취급되므로 부호를 반전시켜야 함
-                    if score_key in ['mse', 'rmse']: 
+                    # MAE와 RMSE는 음수(neg)로 반환되므로 부호를 반전시켜야 함
+                    if score_key in ['mae', 'rmse']: 
                         vals = -vals 
                     res[f'CV_{score_key.upper()}_Mean'] = np.mean(vals)
                     res[f'CV_{score_key.upper()}_Std'] = np.std(vals)
@@ -64,8 +64,8 @@ class MultiOutcomeAnalyst:
                 y_pred = model.predict(X_test)
                 
                 if is_regression:
-                    res['Test_MSE'] = mean_squared_error(y_test, y_pred)
-                    res['Test_RMSE'] = np.sqrt(res['Test_MSE'])
+                    res['Test_MAE'] = mean_absolute_error(y_test, y_pred) # MSE 대신 MAE 계산
+                    res['Test_RMSE'] = np.sqrt(mean_squared_error(y_test, y_pred)) # RMSE는 그대로 유지 가능
                     res['Test_R2'] = r2_score(y_test, y_pred)
                 else:
                     y_prob = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else y_pred
