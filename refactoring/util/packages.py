@@ -80,3 +80,6 @@ from sklearn.metrics import (mean_squared_error, r2_score, accuracy_score,
                              f1_score, roc_auc_score, make_scorer)
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from xgboost import XGBRegressor, XGBClassifier
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA

@@ -366,7 +366,6 @@ def cfa(args, RESULTS_DIR) :
 def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     
     # 변수 할당
-
     
     with open(args.expert_desc, "r", encoding="utf-8") as f:
         desc = f.read()
@@ -381,7 +380,6 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
     # 데이터
     df_CFA = pd.read_csv(args.train_data_dir)
     df_CFA_raw = pd.read_csv(args.binary_train_data_dir)
-    df_EFA = pd.read_csv(args.test_data_dir) # 기회 되면 2018 데이터로 갈아탈 것!
     
 
 
@@ -508,47 +506,6 @@ def outcome_check(args, RESULTS_DIR, RANDOM_SEED) :
 
     mwu_results.to_csv(os.path.join(RESULTS_DIR, "outcome_task1_mwu_results.csv"), index=False)
     # print(mwu_results.head(30))
-
-
-
-    # logistic regression : 이 버전은 결과가 이상해서 일단 보류하기로 했음
-    # # ---- (E-1) Strategy 1: Holdout 7:3 (train fit / test AUC) ----
-    # logit_holdout = run_logistic_binary_outcomes(
-    #     df_fs,
-    #     binary_outcome_cols=binary_outcomes,
-    #     factor_cols=factor_cols,
-    #     covariates=covariates,
-    #     robust_se="HC3",
-    #     standardize_predictors=True,
-    #     fdr_method="fdr_bh",
-    #     compute_auc=True,
-    #     auc_strategy="holdout",
-    #     test_size=0.3,
-    #     bootstrap_n=1000,          # 무시됨
-    #     random_state=RANDOM_SEED
-    # )
-    # logit_holdout.to_csv("aux_logit_results_holdout.csv", index=False)
-
-    # # ---- (E-2) Strategy 2: Bootstrap AUC (OOB, 1000회) ----
-    # logit_boot = run_logistic_binary_outcomes(
-    #     df_fs,
-    #     binary_outcome_cols=binary_outcomes,
-    #     factor_cols=factor_cols,
-    #     covariates=covariates,
-    #     robust_se="HC3",
-    #     standardize_predictors=True,
-    #     fdr_method="fdr_bh",
-    #     compute_auc=True,
-    #     auc_strategy="bootstrap",
-    #     test_size=0.3,             # 무시됨
-    #     bootstrap_n=1000,
-    #     random_state=RANDOM_SEED
-    # )
-    # logit_boot.to_csv("aux_logit_results_bootstrap.csv", index=False)
-
-    # pass
-
-
 
 
     # 시각화
@@ -1006,3 +963,529 @@ def regression_test(args, RESULTS_DIR, RANDOM_SEED) :
     classification_report.to_csv(os.path.join(RESULTS_DIR,"final_classification_report.csv"), index=False)
 
 
+
+
+
+# factor score을 이용해 특정 outcome을 대상으로 regression 수행 - 변형 : 데이터셋과 outcome 변경 및 추가
+# 대상 데이터셋 :  outcome 통과한 KMO 변수
+# outcome : 연속에 Q91_ISI_4, PSQI_sum_WA, ..., 이산에 dissastisfaction, poor_sleeper, 
+def regression_test_2(args, RESULTS_DIR, RANDOM_SEED) :
+    
+    df_EFA = pd.read_csv(args.df_EFA_dir)
+    df_CFA = pd.read_csv(args.df_CFA_dir)
+    df_EFA_raw = pd.read_csv(args.df_EFA_raw_dir)
+    df_CFA_raw = pd.read_csv(args.df_CFA_raw_dir)
+
+
+    # EFA(train & valid), CFA(test) 각각 요인구조 형성에 쓸 데이터, outcome 데이터(conti/binary) 가져오기
+    train_valid_data = pd.read_csv(args.refined_df_EFA_dir)
+    train_valid_outcome_conti = pd.read_csv(args.refined_outcome_EFA_conti_dir)
+    train_valid_outcome_binary = pd.read_csv(args.refined_outcome_EFA_binary_dir)
+
+    test_data = pd.read_csv(args.refined_df_CFA_dir)
+    test_outcome_conti = pd.read_csv(args.refined_outcome_CFA_conti_dir)
+    test_outcome_binary = pd.read_csv(args.refined_outcome_CFA_binary_dir)
+
+
+    ######################
+    # 데이터 추가 : KMO 추가한 40개 변수 대상
+    
+    # 이진변수 구분용
+    with open(args.expert_checked_var_list_dir, "r", encoding="utf-8") as f:
+        expert_checked_vars = json.load(f)
+
+    with open(args.manual_binary_vars_dir, "r", encoding="utf-8") as f:
+        manual_binary_vars = json.load(f)
+
+    # 연속변수는 전문가 정제 변수에서 이진변수를 뺀 변수들로 구성
+    # expert_checked_vars 요소 중 manual_binary_vars에 없는 것만 추출
+    manual_continuous_vars = [v for v in expert_checked_vars if v not in manual_binary_vars]
+
+    # 연속은 훈련, 테스트 각각 df_EFA, df_CFA에서 그대로 붙이면 됨, 이산은 _raw에서 가져오되 직접 0, 1 등 추가 전처리 필요한지 확인 후 붙이기
+    '''
+    "SW",           : 1(yes), 2(no)
+    "sex",          : 1(남), 2(여)
+    "Q89_apnea",    : 1(예), 2(아니오), 3(모름)
+    "D1_1_HT",      : 1(yes), 2(no)
+    "D1_2_DM",      : 1(yes), 2(no)
+    "D1_3_HLP"      : 1(yes), 2(no)
+    -> 0 No, 1 Yes로 인코딩하고, 삼지선다인 Q89는 -1(No), 0(모름), 1(Yes)로 인코딩할 것
+    '''
+
+    # 원본 값 -> 변환 값 매핑
+    binary_map = {
+        "SW": {1: 1, 2: 0},         # yes/no -> 1/0
+        "sex": {1: 1, 2: 0},        # 남/여 -> 1/0 (남=1, 여=0)
+        "D1_1_HT": {1: 1, 2: 0},    # yes/no -> 1/0
+        "D1_2_DM": {1: 1, 2: 0},    # yes/no -> 1/0
+        "D1_3_HLP": {1: 1, 2: 0},   # yes/no -> 1/0
+    }
+
+    q89_map = {
+        1: 1,    # 예
+        2: -1,   # 아니오
+        3: 0     # 모름
+    }
+
+    def preprocess_discrete_vars(df_raw):
+        # 열 존재 여부 확인
+        missing_cols = [col for col in manual_binary_vars if col not in df_raw.columns]
+        if missing_cols:
+            raise ValueError(f"다음 열이 없습니다: {missing_cols}")
+        
+        # 필요한 열만 복사
+        df = df_raw[manual_binary_vars].copy()
+
+        # 이진 변수 인코딩
+        for col, mapping in binary_map.items():
+            df[col] = df[col].map(mapping)
+
+        # 삼지선다 변수 인코딩
+        df["Q89_apnea"] = df["Q89_apnea"].map(q89_map)
+
+        return df
+
+
+    KMO_binary_train_worked = preprocess_discrete_vars(df_EFA_raw)
+    KMO_binary_test_worked = preprocess_discrete_vars(df_CFA_raw)
+    print(KMO_binary_train_worked.head())
+    print(KMO_binary_test_worked.head())
+
+    
+
+    KMO_train_valid_data = pd.concat([df_EFA[manual_continuous_vars], KMO_binary_train_worked], axis=1)
+    KMO_test_data = pd.concat([df_CFA[manual_continuous_vars], KMO_binary_test_worked], axis=1)
+
+
+    #########################
+
+    
+    # outcome에 변수 추가하는 작업 진행 (conti는 EFA/CFA파일에서 그대로 추가하고, binary는 구조 확인 후 이진화 다시 해서 추가)
+
+    additional_outcome_train_conti = pd.concat([train_valid_outcome_conti, df_EFA[args.additional_var_conti]], axis=1)
+    additional_outcome_test_conti = pd.concat([test_outcome_conti, df_CFA[args.additional_var_conti]], axis=1)
+
+    # 일단 지금 넣으려는 변수들은 이진화가 잘 되어 있음, 지금은 그냥 raw에서 갖다 붙이고, 나중에 추가할 때 경고용으로 코드 한 줄 정도만 넣으면 될 듯
+
+    if args.additional_var_binary != ["insomnia","EDS","depression"]:
+        raise ValueError(f"리스트가 다릅니다: {args.additional_var_binary} != {['insomnia','EDS','depression']}")
+
+    additional_outcome_train_binary = pd.concat([train_valid_outcome_binary, df_EFA_raw[args.additional_var_binary]], axis=1)
+    additional_outcome_test_binary = pd.concat([test_outcome_binary, df_CFA_raw[args.additional_var_binary]], axis=1)
+
+
+
+
+
+
+
+    # 전문가 요인구조 가져오기
+    with open(args.expert_desc, "r", encoding="utf-8") as f:
+        desc = f.read()
+
+
+
+    # factor score 데이터셋 만들기 : EFA, CFA 각각 데이터에 대해 1번씩만 하고 돌려쓰면 된다.
+
+
+    # ---- CFA 재수행 후 factor score 뽑기 ----
+    model, est, stats, factor_scores_df = fit_cfa_get_stats_and_scores(
+        df=train_valid_data,
+        desc=desc,
+        observed_cols=None, # None으로 주면 변수 리스트 체크 넘어가고 desc에 적힌 변수 알아서 골라 씀
+        fit_options={"disp": True},
+        dropna_for_scores=True,
+        save_est_path="cfa_estimates.csv",
+        save_stats_path="cfa_fit_stats.csv",
+    )
+
+    # ---- factor score 만드는데 쓰인 weight matrix 추출 ----
+    scoring_weights_df = extract_scoring_weights(model)
+
+    # ---- 라벨링 통일 ----
+    factor_scores_axes, scoring_weights_axes = relabel_scores_and_weights_as_axes(
+        factor_scores_df=factor_scores_df,
+        scoring_weights_df=scoring_weights_df,
+        axis_prefix="Factor_"
+    )
+
+    # 이후 분석에서 factor_scores_df를 라벨 통일된 버전으로 사용
+    factor_scores_df = factor_scores_axes
+
+
+
+    # train FS 데이터는 위에서 수행한 CFA 결과 데이터로 만든다.
+
+    train_valid_factor_score_data = factor_scores_df
+    print(train_valid_factor_score_data.head())
+    print(train_valid_factor_score_data.shape)
+
+
+    # test FS 데이터는 train 데이터의 적합 결과 weight을 이용해서 작업한다.
+
+    def make_factor_scores_from_weights(train_df, new_df, scoring_weights_df, dropna=True):
+        observed_cols = list(scoring_weights_df.columns)
+
+        train_obs = train_df[observed_cols].copy()
+        new_obs = new_df[observed_cols].copy()
+
+        train_mean = train_obs.mean()
+        train_std = train_obs.std(ddof=0).replace(0, 1)
+
+        new_obs_z = (new_obs - train_mean) / train_std
+
+        if dropna:
+            new_obs_z = new_obs_z.dropna(axis=0)
+
+        factor_scores = new_obs_z @ scoring_weights_df.T
+        return factor_scores
+    
+    test_factor_score_data = make_factor_scores_from_weights(
+        train_df=train_valid_data,
+        new_df=test_data,
+        scoring_weights_df=scoring_weights_df,
+        dropna=True
+    )
+
+    # ---- 라벨링 통일 ----
+    test_factor_scores_axes, test_scoring_weights_axes = relabel_scores_and_weights_as_axes(
+        factor_scores_df=test_factor_score_data,
+        scoring_weights_df=scoring_weights_df,
+        axis_prefix="Factor_"
+    )
+
+    # 이후 분석에서 factor_scores_df를 라벨 통일된 버전으로 사용
+    test_factor_score_data = test_factor_scores_axes
+
+    print(test_factor_score_data.head())
+    print(test_factor_score_data.shape)
+
+
+    # 혹시 모르니 하나는 백업해두기
+    # test_factor_score_data = make_factor_score_data(test_data, desc)
+    # print(test_factor_score_data.head())
+    # print(test_factor_score_data.shape)
+
+
+
+
+
+
+
+
+
+
+
+    ############################################################
+
+    # 일반 Decision Tree 및 xgboost로 regression, classification (tree 기반)
+    # 입력은 연속/범주 다 들어감, outcome 종류따라 달라짐
+
+    # 리니어리그레션, 로지스틱 리그레션
+
+    # 앙상블 횟수 등은 default로 진행
+
+    random.seed(RANDOM_SEED) # 파이썬 자체 random 시드 고정
+    np.random.seed(RANDOM_SEED) # 넘파이 연산 시드 고정
+    os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED) # 해시 함수 결과 고정
+
+
+    # --- 실제 실행 프로세스 ---
+
+    # 1. 객체 생성
+    analyst = MultiOutcomeAnalyst(randNum=RANDOM_SEED, n_splits=5)
+
+    # 2. 연속형 Outcome들에 대해 실행 (Linear, DT, XGB Regressors)
+    analyst.run_experiment(
+        train_valid_factor_score_data, test_factor_score_data,
+        additional_outcome_train_conti, additional_outcome_test_conti, 
+        is_regression=True
+    )
+
+    # 3. 이산형 Outcome들에 대해 실행 (Logistic, DT, XGB Classifiers)
+    analyst.run_experiment(
+        train_valid_factor_score_data, test_factor_score_data,
+        additional_outcome_train_binary, additional_outcome_test_binary, 
+        is_regression=False
+    )
+
+    # 4. 결과 출력 및 저장
+    report_df = analyst.get_final_report()
+
+    # 회귀 결과만 보기 (NaN인 분류 지표 컬럼 제거)
+    regression_report = report_df[report_df['Type'] == 'Regression'].dropna(axis=1, how='all')
+
+    # 분류 결과만 보기 (NaN인 회귀 지표 컬럼 제거)
+    classification_report = report_df[report_df['Type'] == 'Classification'].dropna(axis=1, how='all')
+
+    print(regression_report)
+    print(classification_report)
+
+    # 저장
+    regression_report.to_csv(os.path.join(RESULTS_DIR,"2_FS_final_regression_report.csv"), index=False)
+    classification_report.to_csv(os.path.join(RESULTS_DIR,"2_FS_final_classification_report.csv"), index=False)
+
+
+
+
+
+    # ver2 : 데이터 변경해서 다시 시도!! (KMO 통과한 40개 변수 대상)
+    ############################################################
+
+    # 일반 Decision Tree 및 xgboost로 regression, classification (tree 기반)
+    # 입력은 연속/범주 다 들어감, outcome 종류따라 달라짐
+
+    # 리니어리그레션, 로지스틱 리그레션
+
+    # 앙상블 횟수 등은 default로 진행
+
+
+    random.seed(RANDOM_SEED) # 파이썬 자체 random 시드 고정
+    np.random.seed(RANDOM_SEED) # 넘파이 연산 시드 고정
+    os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED) # 해시 함수 결과 고정
+
+
+    # --- 실제 실행 프로세스 ---
+
+    # 1. 객체 생성
+    analyst = MultiOutcomeAnalyst(randNum=RANDOM_SEED, n_splits=5)
+
+    # 2. 연속형 Outcome들에 대해 실행 (Linear, DT, XGB Regressors)
+    analyst.run_experiment(
+        KMO_train_valid_data, KMO_test_data,
+        additional_outcome_train_conti, additional_outcome_test_conti, 
+        is_regression=True
+    )
+
+    # 3. 이산형 Outcome들에 대해 실행 (Logistic, DT, XGB Classifiers)
+    analyst.run_experiment(
+        KMO_train_valid_data, KMO_test_data,
+        additional_outcome_train_binary, additional_outcome_test_binary, 
+        is_regression=False
+    )
+
+    # 4. 결과 출력 및 저장
+    report_df = analyst.get_final_report()
+
+    # 회귀 결과만 보기 (NaN인 분류 지표 컬럼 제거)
+    regression_report = report_df[report_df['Type'] == 'Regression'].dropna(axis=1, how='all')
+
+    # 분류 결과만 보기 (NaN인 회귀 지표 컬럼 제거)
+    classification_report = report_df[report_df['Type'] == 'Classification'].dropna(axis=1, how='all')
+
+    print(regression_report)
+    print(classification_report)
+
+    # 저장
+    regression_report.to_csv(os.path.join(RESULTS_DIR,"2_KMO_final_regression_report.csv"), index=False)
+    classification_report.to_csv(os.path.join(RESULTS_DIR,"2_KMO_final_classification_report.csv"), index=False)
+
+
+
+    
+# outcome 변수들을 이용한 평가 : 확장 (from task 5)
+# factor score 나온 가중치를 PCA 1축으로 돌린 데이터 새로 생성, 기존의 factor_score 테이블과 하나로 합치기
+# 이산 outcome 변수 목록 : ISI, ESS, PHQ, Q51_slp_sufficient, PSQI_sum_WA, Q91_ISI_4
+# 연속 outcome 변수 목록 : insomnia, poor_sleeper, EDS, depression, dissatisfaction 
+def outcome_check_2(args, RESULTS_DIR, RANDOM_SEED) :
+
+    random.seed(RANDOM_SEED) # 파이썬 자체 random 시드 고정
+    np.random.seed(RANDOM_SEED) # 넘파이 연산 시드 고정
+    os.environ['PYTHONHASHSEED'] = str(RANDOM_SEED) # 해시 함수 결과 고정
+    
+    # 변수 할당
+    
+    with open(args.expert_desc, "r", encoding="utf-8") as f:
+        desc = f.read()
+
+    with open(args.observed_cols, "r", encoding="utf-8") as f:
+        observed_cols = json.load(f)
+    
+    continuous_outcomes = args.continuous_outcomes
+    binary_outcomes = args.binary_outcomes
+    covariates = args.covariates
+
+    # 데이터
+    df_EFA = pd.read_csv(args.df_EFA_dir)
+    df_EFA_raw = pd.read_csv(args.df_EFA_raw_dir) # 이 둘은 outcome 뽑는 용도
+    refined_df_EFA = pd.read_csv(args.train_data_dir) # 이걸 데이터로 사용할 것
+
+
+
+
+
+    # ---- CFA 재수행 후 factor score 뽑기 ----
+    model, est, stats, factor_scores_df = fit_cfa_get_stats_and_scores(
+        df=refined_df_EFA,
+        desc=desc,
+        observed_cols=observed_cols,
+        fit_options={"disp": True},
+        dropna_for_scores=True,
+        save_est_path="cfa_estimates.csv",
+        save_stats_path="cfa_fit_stats.csv",
+    )
+
+    # ---- factor score 만드는데 쓰인 weight matrix 추출 ----
+    scoring_weights_df = extract_scoring_weights(model)
+
+    # ---- 라벨링 통일 ----
+    factor_scores_axes, scoring_weights_axes = relabel_scores_and_weights_as_axes(
+        factor_scores_df=factor_scores_df,
+        scoring_weights_df=scoring_weights_df,
+        axis_prefix="Factor_"
+    )
+
+    # 이후 분석에서 factor_scores_df를 라벨 통일된 버전으로 사용
+    factor_scores_df = factor_scores_axes
+
+    # 저장
+    factor_scores_axes.to_csv(os.path.join(RESULTS_DIR, "outcome_factor_scores.csv"), encoding="utf-8-sig")
+    scoring_weights_axes.to_csv(os.path.join(RESULTS_DIR, "outcome_scoring_weights.csv"), encoding="utf-8-sig")
+
+    # 확인용 top-weight 출력 (Axis 기준)
+    for ax in scoring_weights_axes.index:
+        top = scoring_weights_axes.loc[ax].abs().sort_values(ascending=False).head(3)
+        print(f"[CHECK] {ax} top weights:", list(zip(top.index.tolist(), top.values.tolist())))
+
+
+
+
+
+
+    # --------------------factor score과 outcome 변수를 한 df에 집어넣고 관리하기-----------------------------------
+    # -> 단, binary outcome은 정규화로 0/1 값을 망치면 안되므로 raw 값으로 덮어쓰기
+    # -> 다른 변수들이 군더더기로 붙어있다. 어차피 함수 안쪽에서 정제되긴 하지만, 그래도 겉에서 continuous outcome만 발라내도록 하자.
+    # -> 겸사겸사 로직 변경 : 괜히 df_CFA 다 집어넣지 말고, df_fs에서 연속 outcome만 추출하고, 이진 outcome 및 factor score과 합쳐서 진행?
+
+
+    df_fs_continuous = df_EFA[continuous_outcomes].copy()  # 연속형 outcome은 일단 z-score 표준화 된 데이터에서 추출
+    df_fs_binary = df_EFA_raw[binary_outcomes].copy()  # 이진형 outcome은 raw로 추출 (지금 있는 이산 값들은 전부 0, 1 잘 나뉘어 있음)
+    # binary의 경우, dissatisfaction 지표는 따로 raw 데이터로부터 뽑아야 한다.
+    df_fs_binary["dissatisfaction"] = np.where(df_EFA_raw["Q91_ISI_4"] <= 2, 0, 1)
+
+
+
+    df_fs = pd.concat([df_fs_continuous, df_fs_binary, factor_scores_df], axis=1, join="inner")  # factor score과 outcome 합치기 (연속형은 표준화된 값, 이진형은 raw 값 유지)
+    # print("각 df 크기 :", df_fs_continuous.shape, df_fs_binary.shape, factor_scores_df.shape)
+    # print("inner join 후 df_fs 크기:", df_fs.shape)
+
+
+    #######################################################################
+    # factor cols도 단순 factor scores만 들어가는게 아니고, factor score PCA 1축 돌린 데이터와 factor score을 다시 CFA 돌린 데이터, 이렇게 2열이 추가되어야 한다.
+    
+    # ---- CFA 재수행 후 factor score 뽑기 ----
+    model_2nd, est, stats, fs_2nd_scores_df = fit_cfa_get_stats_and_scores(
+        df=factor_scores_df,
+        desc='''
+                Score1 =~ Factor_1 + Factor_2 + Factor_3 + Factor_4 + Factor_5
+            ''',
+        observed_cols=["Factor_1", "Factor_2", "Factor_3", "Factor_4", "Factor_5"],
+        fit_options={"disp": True},
+        dropna_for_scores=True,
+        save_est_path="2nd_cfa_estimates.csv",
+        save_stats_path="2nd_cfa_fit_stats.csv",
+    )
+
+    # weight 따로 저장
+    FS_2nd_weights = extract_scoring_weights(model_2nd)
+    FS_2nd_weights.to_csv(os.path.join(RESULTS_DIR, "FS_2nd_weights.csv"), index=False)
+
+    # 이름확인용 끊기 : Score1 그대로 있음
+    # print(fs_2nd_scores_df.shape)
+    # sys.exit(0)
+
+
+    # factor_scores_df를 PCA 1축으로 수행한 결과 뽑기
+    temp_X = StandardScaler().fit_transform(factor_scores_df)
+    pc1 = PCA(n_components=1).fit_transform(temp_X) # pc1[:,0] 하면 해당 열 슬라이스 나옴
+
+
+    # 이제 df_fs 확장 및 factor_cols 정의
+    df_fs = pd.concat([df_fs, fs_2nd_scores_df],axis=1)
+    df_fs["FS_PC1"] = pc1[:,0]
+    factor_cols = list(factor_scores_df.columns) + list(fs_2nd_scores_df.columns) + ["FS_PC1"]
+
+    print(df_fs.head)
+    print(factor_cols)
+
+    # (선택) covariates도 raw로 유지하고 싶으면 같이 덮어쓰기
+    # cov_missing = [c for c in covariates if c not in df_CFA_raw.columns]
+    # if cov_missing:
+    #     raise KeyError(f"Covariate columns missing in df_CFA_raw: {cov_missing}")
+    # df_fs.loc[:, covariates] = df_CFA_raw.loc[df_fs.index, covariates].values
+
+
+
+
+
+
+
+
+    # t-test 정규성 검정
+    shapiro_res = shapiro_by_binary_groups(
+        df=df_fs,                   # 보통 t-test에 쓰는 df_fs에서 검사하는 게 자연스러움
+        binary_outcomes=list(df_fs_binary.columns),
+        factor_cols=factor_cols,
+        alpha=0.05,
+        max_n=5000,
+        random_state=RANDOM_SEED
+    )
+
+    shapiro_res.to_csv(os.path.join(RESULTS_DIR, "2nd_outcome_shapiro_results_by_group.csv"), index=False)
+    print(shapiro_res.head(20))
+
+
+
+
+
+    # ---- 연속 outcome 대상 OLS 적합 ----
+    ols_results = run_ols_continuous_outcomes(
+        df_fs,
+        outcome_cols=continuous_outcomes,
+        factor_cols=factor_cols,
+        covariates=covariates,
+        robust_se="HC3",
+        standardize=True,   # 표준화 β로 보고 싶으면 True, raw 단위 해석이면 False
+        fdr_method="fdr_bh"
+    )
+    ols_results.to_csv(os.path.join(RESULTS_DIR, "2nd_outcome_task1_ols_results.csv"), index=False)
+
+    # ---- 이진 outcome 대상 t-test (표본수 이슈가 있을 수 있음) ----
+    ttest_results = run_ttests_binary_outcomes_on_factors(
+        df_fs,
+        binary_outcome_cols=list(df_fs_binary.columns),
+        factor_cols=factor_cols,
+        equal_var=False,
+        fdr_method="fdr_bh"
+    )
+    ttest_results.to_csv(os.path.join(RESULTS_DIR, "2nd_outcome_task1_ttest_results.csv"), index=False)
+
+    # ---- 이진 outcome 대상 MHU(Mann–Whitney U tests) ----
+    mwu_results = run_mannwhitney_binary_outcomes_on_factors(
+        df=df_fs,
+        binary_outcome_cols=list(df_fs_binary.columns),
+        factor_cols=factor_cols,
+        alternative="two-sided",
+        fdr_method="fdr_bh"
+    )
+
+    mwu_results.to_csv(os.path.join(RESULTS_DIR, "2nd_outcome_task1_mwu_results.csv"), index=False)
+    # print(mwu_results.head(30))
+
+
+    # 시각화
+    
+    visual_task1_ols(args, ols_results, RESULTS_DIR)
+    visual_task1_ttest(args, ttest_results, RESULTS_DIR)
+    visual_task1_mwu(args, mwu_results, RESULTS_DIR)
+
+
+    # pearson, scatter, boxplot
+    visual_task2_pearson_scatter_box(args, df_fs, RESULTS_DIR)
+
+
+
+
+
+# 터미널에서 PYTHONHASHSEED=42 먼저 쓰고 나서 python 파일 실행
+# 터미널에서 PYTHONHASHSEED=42 먼저 쓰고 나서 python 파일 실행

@@ -7,10 +7,13 @@ from util.packages import *
 from util import a00_task_executor
 
 
-
+# 터미널에서 PYTHONHASHSEED=42 먼저 쓰고 나서 python 파일 실행
 
 
 def main() :
+
+    
+
 
     # args = setup_parser().parse_args()
     # param = load_json(args.config)
@@ -75,7 +78,12 @@ def main() :
         elif task == 8 : 
             # factor score을 이용해 특정 outcome을 대상으로 regression 수행
             a00_task_executor.regression_test(args.task_8, RESULTS_DIR, RANDOM_SEED)
-            
+        elif task == 9 : 
+            # 위의 task 8에서 outcome 변수와 데이터셋 확장한 버전
+            a00_task_executor.regression_test_2(args.task_9, RESULTS_DIR, RANDOM_SEED)
+        elif task == 10 :
+            # outcome test 함수 - ver2 (from task 5)
+            a00_task_executor.outcome_check_2(args.task_10, RESULTS_DIR, RANDOM_SEED)
 
 
 
@@ -98,4 +106,5 @@ def setup_parser():
 if __name__ =="__main__":
 
     main()
-    
+
+# 터미널에서 PYTHONHASHSEED=42 먼저 쓰고 나서 python 파일 실행
